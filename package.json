@@ -24,6 +24,6 @@
     "files": ["main.js", "preload.js", "renderer/**/*"],
     "win": { "target": "nsis" },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
-    "publish": { "provider": "github", "owner": "martinbhans1", "repo": "nav-tool" }
+    "publish": { "provider": "github", "owner": "martinbhans1", "repo": "nav-tool", "releaseType": "release" }
   }
 }
