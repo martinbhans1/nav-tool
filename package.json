@@ -1,0 +1,29 @@
+{
+  "name": "nav-tool",
+  "version": "1.0.0",
+  "description": "Lokalt oppfølgingsverktøy — kontakt-oversikt per måned, gjøremål og notater. All data ligger lokalt på maskinen.",
+  "main": "main.js",
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "release": "electron-builder --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "no.local.navtool",
+    "productName": "Oppfølging",
+    "files": ["main.js", "preload.js", "renderer/**/*"],
+    "win": { "target": "nsis" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+    "publish": { "provider": "github", "owner": "martinbhans1", "repo": "nav-tool" }
+  }
+}

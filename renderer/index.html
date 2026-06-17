@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'" />
+  <title>Oppfølging</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ---------- left nav ---------- -->
+    <nav class="sidebar">
+      <div class="brand">
+        <div class="logo">O</div>
+        <div class="brand-text">
+          <strong>Oppfølging</strong>
+          <span>lokalt · kun initialer</span>
+        </div>
+      </div>
+
+      <button class="nav-item active" data-nav="oversikt"><span class="ni-ic">▦</span>Oversikt</button>
+      <button class="nav-item" data-nav="tasks"><span class="ni-ic">✓</span>Gjøremål<span class="nav-badge" id="navTasks"></span></button>
+      <button class="nav-item" data-nav="referat"><span class="ni-ic">✎</span>Referat<span class="nav-badge" id="navReferat"></span></button>
+      <button class="nav-item" data-nav="notes"><span class="ni-ic">▭</span>Notater</button>
+      <button class="nav-item" data-nav="settings"><span class="ni-ic">⚙</span>Innstillinger</button>
+
+      <div class="sidebar-foot">
+        <span id="saveState" class="save-state" aria-live="polite"></span>
+        <button id="exportBtn" class="mini-btn" title="Lagre en sikkerhetskopi til fil">Eksporter</button>
+        <button id="importBtn" class="mini-btn" title="Hent data fra en sikkerhetskopi">Importer</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <!-- ---------- Oversikt (month grid) ---------- -->
+      <section class="view active" data-view="oversikt">
+        <div class="view-head">
+          <h1>Kontakt-oversikt</h1>
+          <div class="head-tools">
+            <div class="year-switch" role="group" aria-label="Velg år">
+              <button id="yearPrev" class="icon-btn" aria-label="Forrige år">‹</button>
+              <span id="yearLabel" class="year-label">2026</span>
+              <button id="yearNext" class="icon-btn" aria-label="Neste år">›</button>
+            </div>
+            <form id="addContactForm" class="inline-add" autocomplete="off">
+              <input id="contactInput" type="text" maxlength="6" placeholder="Initialer (f.eks. AB)" aria-label="Initialer for ny kontakt" />
+              <button class="btn primary" type="submit">Legg til</button>
+            </form>
+          </div>
+        </div>
+        <div class="card grid-card">
+          <div class="grid-scroll">
+            <table id="grid" class="grid">
+              <thead id="gridHead"></thead>
+              <tbody id="gridBody"></tbody>
+              <tfoot id="gridFoot"></tfoot>
+            </table>
+            <div id="gridEmpty" class="empty hidden">Legg til personene du har ansvar for — kun initialer.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- Gjøremål (tasks) ---------- -->
+      <section class="view" data-view="tasks">
+        <div class="view-head"><h1>Gjøremål</h1></div>
+        <form id="addTaskForm" class="card form-card" autocomplete="off">
+          <input id="taskTitle" class="f-title" type="text" placeholder="Tittel…" aria-label="Tittel" />
+          <textarea id="taskNote" class="f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
+          <div class="f-row">
+            <label class="f-field"><span>Frist</span><input id="taskDue" type="date" /></label>
+            <label class="f-field"><span>Prioritet</span>
+              <select id="taskPriority">
+                <option value="low">Lav</option>
+                <option value="normal" selected>Normal</option>
+                <option value="high">Høy</option>
+              </select>
+            </label>
+            <label class="f-field grow"><span>Person (valgfritt)</span>
+              <input id="taskContact" type="text" list="contactsList" maxlength="6" placeholder="Initialer" />
+            </label>
+            <button class="btn primary f-add" type="submit">Legg til</button>
+          </div>
+        </form>
+        <div id="taskActive" class="item-list"></div>
+        <details id="taskDoneWrap" class="done-wrap">
+          <summary>Fullført (<span id="taskDoneCount">0</span>)</summary>
+          <div id="taskDone" class="item-list done"></div>
+        </details>
+      </section>
+
+      <!-- ---------- Referat reminders ---------- -->
+      <section class="view" data-view="referat">
+        <div class="view-head">
+          <h1>Referat-påminnelser</h1>
+          <p class="view-sub">Påminnelser om referater som skal skrives i NAVs system — ikke selve teksten.</p>
+        </div>
+        <form id="addReferatForm" class="card form-card" autocomplete="off">
+          <input id="refTitle" class="f-title" type="text" placeholder="Hva skal skrives?" aria-label="Hva skal skrives" />
+          <textarea id="refNote" class="f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
+          <div class="f-row">
+            <label class="f-field"><span>Dato</span><input id="refDate" type="date" /></label>
+            <label class="f-field grow"><span>Person</span>
+              <input id="refContact" type="text" list="contactsList" maxlength="6" placeholder="Initialer" />
+            </label>
+            <button class="btn primary f-add" type="submit">Legg til</button>
+          </div>
+        </form>
+        <div id="refActive" class="item-list"></div>
+        <details id="refDoneWrap" class="done-wrap">
+          <summary>Skrevet (<span id="refDoneCount">0</span>)</summary>
+          <div id="refDone" class="item-list done"></div>
+        </details>
+      </section>
+
+      <!-- ---------- Notater ---------- -->
+      <section class="view" data-view="notes">
+        <div class="view-head"><h1>Notater</h1></div>
+        <div class="card notes-card">
+          <textarea id="summary" placeholder="Sammendrag og notater…"></textarea>
+        </div>
+      </section>
+
+      <!-- ---------- Innstillinger ---------- -->
+      <section class="view" data-view="settings">
+        <div class="view-head">
+          <h1>Innstillinger</h1>
+          <p class="view-sub">Tilpass utseendet slik du vil ha det. Endringer vises med en gang og lagres lokalt.</p>
+        </div>
+        <div class="card set-card">
+          <div class="set-section">
+            <h2>Tema</h2>
+            <div id="themeGrid" class="set-grid"></div>
+          </div>
+          <div class="set-section">
+            <h2>Aksentfarge</h2>
+            <div class="color-field">
+              <input type="color" id="accentColor" aria-label="Egendefinert aksentfarge" />
+              <div id="accentSwatches" class="swatches"></div>
+            </div>
+          </div>
+          <div class="set-section">
+            <h2>Skrifttype</h2>
+            <div id="fontGrid" class="set-grid"></div>
+          </div>
+          <div class="set-section">
+            <h2>Tetthet</h2>
+            <div class="seg-group" id="densityGroup">
+              <button type="button" class="seg" data-val="comfortable">Luftig</button>
+              <button type="button" class="seg" data-val="compact">Kompakt</button>
+            </div>
+          </div>
+          <div class="set-section">
+            <h2>Tekststørrelse</h2>
+            <div class="range-row">
+              <input type="range" id="readingRange" min="12" max="18" step="1" />
+              <span class="range-val" id="readingVal">14px</span>
+            </div>
+          </div>
+          <div class="set-section">
+            <h2>Størrelse</h2>
+            <div class="range-row">
+              <input type="range" id="scaleRange" min="85" max="130" step="5" />
+              <span class="range-val" id="scaleVal">100%</span>
+            </div>
+          </div>
+          <div class="set-section">
+            <h2>Hjørner (avrunding)</h2>
+            <div class="range-row">
+              <input type="range" id="radiusRange" min="0" max="22" step="1" />
+              <span class="range-val" id="radiusVal">12px</span>
+              <div class="radius-sample" title="Forhåndsvisning"></div>
+            </div>
+          </div>
+          <div class="set-section">
+            <h2>Bakgrunn</h2>
+            <div class="seg-group" id="bgGroup">
+              <button type="button" class="seg" data-val="flat">Flat</button>
+              <button type="button" class="seg" data-val="gradient">Toning</button>
+              <button type="button" class="seg" data-val="dots">Prikker</button>
+            </div>
+          </div>
+          <div class="set-section">
+            <h2>Kontaktet-farge</h2>
+            <div class="seg-group" id="contactedGroup">
+              <button type="button" class="seg" data-val="green">Grønn</button>
+              <button type="button" class="seg" data-val="accent">Aksent</button>
+            </div>
+          </div>
+          <div class="set-section">
+            <button id="resetTheme" class="btn">Tilbakestill tilpasning</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <datalist id="contactsList"></datalist>
+  <script src="app.js"></script>
+</body>
+</html>
