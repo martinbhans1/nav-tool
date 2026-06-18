@@ -45,8 +45,7 @@
       <div class="navlist">
         <button class="nav-item active" data-nav="hjem"><span class="ni-ic" data-icon="home"></span><span class="ni-label">Hjem</span></button>
         <button class="nav-item" data-nav="oversikt"><span class="ni-ic" data-icon="grid"></span><span class="ni-label">Oversikt</span></button>
-        <button class="nav-item" data-nav="tasks"><span class="ni-ic" data-icon="check-square"></span><span class="ni-label">Gjøremål</span><span class="nav-badge" id="navTasks"></span></button>
-        <button class="nav-item" data-nav="referat"><span class="ni-ic" data-icon="pen-line"></span><span class="ni-label">Referat</span><span class="nav-badge" id="navReferat"></span></button>
+        <button class="nav-item" data-nav="tasks"><span class="ni-ic" data-icon="check-square"></span><span class="ni-label">Gjøremål &amp; referat</span><span class="nav-badge" id="navTasks"></span></button>
         <button class="nav-item" data-nav="kalender"><span class="ni-ic" data-icon="calendar"></span><span class="ni-label">Kalender</span></button>
         <button class="nav-item hidden" data-nav="notes"><span class="ni-ic" data-icon="notebook"></span><span class="ni-label">Notater</span></button>
         <button class="nav-item" data-nav="settings"><span class="ni-ic" data-icon="settings"></span><span class="ni-label">Innstillinger</span></button>
@@ -72,6 +71,18 @@
               <h2 class="hjem-h2">I dag</h2>
             </div>
             <div id="hjemToday" class="item-list"></div>
+          </div>
+          <div class="hjem-col">
+            <div class="hjem-block-head">
+              <h2 class="hjem-h2">Hurtignotat</h2>
+            </div>
+            <div class="card qn-card">
+              <div class="qn-input-row">
+                <textarea id="quickNoteInput" class="field qn-input" rows="2" placeholder="Skriv et raskt notat… (Enter for å lagre)" aria-label="Hurtignotat"></textarea>
+                <button id="quickNoteAdd" class="btn primary qn-add" type="button"><span class="ic" data-icon="plus"></span>Legg til</button>
+              </div>
+              <div id="quickNoteList" class="qn-list"></div>
+            </div>
           </div>
         </div>
         <div class="hjem-shortcuts" id="hjemShortcuts"></div>
@@ -105,51 +116,61 @@
         </div>
       </section>
 
-      <!-- ---------- Gjøremål (tasks) ---------- -->
+      <!-- ---------- Gjøremål & referat (combined) ---------- -->
       <section class="view" data-view="tasks">
-        <div class="view-head"><h1>Gjøremål</h1></div>
-        <form id="addTaskForm" class="card form-card" autocomplete="off">
-          <input id="taskTitle" class="field f-title" type="text" placeholder="Tittel…" aria-label="Tittel" />
-          <textarea id="taskNote" class="field f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
-          <div class="f-row">
-            <div class="field-group"><span class="field-label">Frist</span><div id="taskDue"></div></div>
-            <div class="field-group"><span class="field-label">Prioritet</span><div id="taskPriorityDd"></div></div>
-            <div class="field-group grow"><span class="field-label">Person (valgfritt)</span><div id="taskContactCombo"></div></div>
-            <button class="btn primary f-add" type="submit"><span class="ic" data-icon="plus"></span>Legg til</button>
+        <div class="view-head"><h1>Gjøremål &amp; referat</h1></div>
+        <div class="dual-cols">
+          <!-- left column: Gjøremål -->
+          <div class="dual-col" data-col="tasks">
+            <h2 class="col-head">Gjøremål</h2>
+            <form id="addTaskForm" class="card form-card" autocomplete="off">
+              <input id="taskTitle" class="field f-title" type="text" placeholder="Tittel…" aria-label="Tittel" />
+              <textarea id="taskNote" class="field f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
+              <div class="f-row">
+                <div class="field-group"><span class="field-label">Frist</span><div id="taskDue"></div></div>
+                <div class="field-group"><span class="field-label">Prioritet</span><div id="taskPriorityDd"></div></div>
+                <div class="field-group grow"><span class="field-label">Person (valgfritt)</span><div id="taskContactCombo"></div></div>
+                <button class="btn primary f-add" type="submit"><span class="ic" data-icon="plus"></span>Legg til</button>
+              </div>
+            </form>
+            <div id="taskActive" class="item-list"></div>
+            <details id="taskDoneWrap" class="done-wrap">
+              <summary>Fullført (<span id="taskDoneCount">0</span>)</summary>
+              <div id="taskDone" class="item-list done"></div>
+            </details>
           </div>
-        </form>
-        <div id="taskActive" class="item-list"></div>
-        <details id="taskDoneWrap" class="done-wrap">
-          <summary>Fullført (<span id="taskDoneCount">0</span>)</summary>
-          <div id="taskDone" class="item-list done"></div>
-        </details>
-      </section>
 
-      <!-- ---------- Referat reminders ---------- -->
-      <section class="view" data-view="referat">
-        <div class="view-head">
-          <h1>Referat-påminnelser</h1>
+          <!-- right column: Referat -->
+          <div class="dual-col" data-col="referat">
+            <h2 class="col-head">Referat</h2>
+            <form id="addReferatForm" class="card form-card" autocomplete="off">
+              <input id="refTitle" class="field f-title" type="text" placeholder="Hva skal skrives?" aria-label="Hva skal skrives" />
+              <textarea id="refNote" class="field f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
+              <div class="f-row">
+                <div class="field-group"><span class="field-label">Dato</span><div id="refDate"></div></div>
+                <div class="field-group grow"><span class="field-label">Person</span><div id="refContactCombo"></div></div>
+                <button class="btn primary f-add" type="submit"><span class="ic" data-icon="plus"></span>Legg til</button>
+              </div>
+            </form>
+            <div id="refActive" class="item-list"></div>
+            <details id="refDoneWrap" class="done-wrap">
+              <summary>Skrevet (<span id="refDoneCount">0</span>)</summary>
+              <div id="refDone" class="item-list done"></div>
+            </details>
+          </div>
         </div>
-        <form id="addReferatForm" class="card form-card" autocomplete="off">
-          <input id="refTitle" class="field f-title" type="text" placeholder="Hva skal skrives?" aria-label="Hva skal skrives" />
-          <textarea id="refNote" class="field f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
-          <div class="f-row">
-            <div class="field-group"><span class="field-label">Dato</span><div id="refDate"></div></div>
-            <div class="field-group grow"><span class="field-label">Person</span><div id="refContactCombo"></div></div>
-            <button class="btn primary f-add" type="submit"><span class="ic" data-icon="plus"></span>Legg til</button>
-          </div>
-        </form>
-        <div id="refActive" class="item-list"></div>
-        <details id="refDoneWrap" class="done-wrap">
-          <summary>Skrevet (<span id="refDoneCount">0</span>)</summary>
-          <div id="refDone" class="item-list done"></div>
-        </details>
       </section>
 
-      <!-- ---------- Kalender (agenda) ---------- -->
+      <!-- ---------- Kalender (agenda list + month grid) ---------- -->
       <section class="view" data-view="kalender">
-        <div class="view-head"><h1>Kalender</h1></div>
+        <div class="view-head">
+          <h1>Kalender</h1>
+          <div class="head-tools" id="kalToolbar"></div>
+        </div>
+        <!-- Liste view: the existing agenda buckets -->
         <div id="agendaRoot" class="agenda"></div>
+        <!-- Måned view: the month grid (filled by renderMonthGrid) -->
+        <div id="monthRoot" class="month-card card hidden"></div>
       </section>
 
       <!-- ---------- Notater ---------- -->
@@ -232,6 +253,13 @@
                 <div class="seg-group" id="contactedGroup">
                   <button type="button" class="seg" data-val="green">Grønn</button>
                   <button type="button" class="seg" data-val="accent">Aksent</button>
+                </div>
+              </div>
+              <div class="set-section">
+                <h2>Felt-farge</h2>
+                <div class="color-field">
+                  <div id="fieldColor"></div>
+                  <div id="fieldColorSwatches" class="swatches"></div>
                 </div>
               </div>
               <div class="set-section">

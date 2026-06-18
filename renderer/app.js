@@ -35,6 +35,20 @@ function fmtDate(s) {
   return d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 const isOverdue = (s) => !!s && s < todayStr();
+// Short "for X siden"-style relative timestamp from an epoch ms value.
+function relTime(ts) {
+  if (!Number.isFinite(ts)) return '';
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'akkurat nå';
+  if (min < 60) return 'for ' + min + ' min siden';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return 'for ' + hr + (hr === 1 ? ' time siden' : ' timer siden');
+  const day = Math.floor(hr / 24);
+  if (day < 7) return 'for ' + day + (day === 1 ? ' dag siden' : ' dager siden');
+  const d = new Date(ts);
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+}
 // the new-task date prefilled per the "Standard frist" setting
 function defaultDueDate() {
   const d = (typeof state === 'object' && state.settings && state.settings.defaultDue) || 'today';
@@ -188,7 +202,7 @@ const DATE_FORMATS = ['lang', 'numerisk'];
 const DEFAULT_DUE_VALUES = ['today', 'tomorrow', 'none'];
 
 function defaultSettings() {
-  return { theme: 'lys', accent: '', font: 'system', scale: 100, radius: 12,
+  return { theme: 'lys', accent: '', fieldColor: '', font: 'system', scale: 100, radius: 12,
            density: 'comfortable', readingSize: 14, background: 'flat', contacted: 'green',
            btnStyle: 'solid', fieldStyle: 'standard', ddStyle: 'standard',
            // appearance (new)
@@ -206,6 +220,7 @@ function defaultState() {
     contacted: {},         // { contactId: { [year]: [bool x12] } }
     tasks: [],             // [{ id, title, note, due, priority, contactId, done, createdAt, doneAt }]
     referater: [],         // [{ id, title, note, date, contactId, done, createdAt, doneAt }]
+    notes: [],             // [{ id, text, createdAt }] — quick-capture notes from Hjem
     summary: '',
     customThemes: [],      // [{ key:'egen-<id>', name, custom:true, ...full palette }] — user-made vibe bundles
     settings: defaultSettings(),
@@ -278,6 +293,11 @@ function normalize(s) {
       date: r.date || '', contactId: r.contactId || null,
       done: !!r.done, createdAt: r.createdAt || Date.now(), doneAt: r.doneAt || null,
     })),
+    notes: (Array.isArray(s.notes) ? s.notes : []).filter(n => n && typeof n === 'object').map(n => ({
+      id: typeof n.id === 'string' && n.id ? n.id : uid(),
+      text: String(n.text != null ? n.text : '').slice(0, 2000),
+      createdAt: Number.isFinite(n.createdAt) ? n.createdAt : Date.now(),
+    })).filter(n => n.text.trim()),
     summary: typeof s.summary === 'string' ? s.summary : '',
     customThemes: (() => {
       const arr = Array.isArray(s.customThemes) ? s.customThemes : [];
@@ -299,6 +319,7 @@ function normalize(s) {
       return {
         theme: themeOk(si.theme) ? si.theme : def.theme,
         accent: /^#[0-9a-fA-F]{6}$/.test(si.accent || '') ? si.accent : '',
+        fieldColor: /^#[0-9a-fA-F]{6}$/.test(si.fieldColor || '') ? si.fieldColor : '',
         font: FONTS.some(f => f.key === si.font) ? si.font : def.font,
         scale: Number.isFinite(si.scale) ? clamp(si.scale, 85, 130) : def.scale,
         radius: Number.isFinite(si.radius) ? clamp(si.radius, 0, 22) : def.radius,
@@ -660,14 +681,14 @@ function buildDatePicker(host, { value = '', placeholder = 'Velg dato', onChange
 // --- colour well (replaces native <input type=color>) — opens a hidden native
 //     picker is NOT allowed; we build a small swatch grid + free-pick via a
 //     lightweight hex prompt modal. Keeps it native-free.
-function buildColorWell(host, { value = '#4f46e5', onLive, onDefault, onClose } = {}) {
+function buildColorWell(host, { value = '#4f46e5', tip = 'Velg aksentfarge', onLive, onDefault, onClose } = {}) {
   // renderSettings() rebuilds this well on every settings change, but the host
   // (#accentColor) is a persistent element — re-adding listeners each time would
   // stack them, so a single click would open one picker modal per past render.
   // Replace the node with a shallow clone to drop any previously-bound handlers.
   if (host.parentNode) { const fresh = host.cloneNode(false); host.parentNode.replaceChild(fresh, host); host = fresh; }
   host.classList.add('color-well'); host.textContent = '';
-  host.setAttribute('role', 'button'); host.tabIndex = 0; host.dataset.tip = 'Velg aksentfarge';
+  host.setAttribute('role', 'button'); host.tabIndex = 0; host.dataset.tip = tip;
   const sw = el('span', 'cw-swatch'); host.appendChild(sw);
   let cur = value;
   const paint = () => { sw.style.background = cur; };
@@ -1269,6 +1290,11 @@ function agendaEntries() {
 // Re-render every agenda-driven surface (kalender + the Hjem "I dag" block) so
 // quick-actions behave identically no matter which view the card lives on.
 function refreshAgendaViews() { renderKalender(); renderHjem(); renderBadges(); }
+// --- Kalender view state (not persisted; defaults to list + the real month) ---
+let kalenderView = 'liste';            // 'liste' | 'maned'
+const _now0 = new Date();
+let calY = _now0.getFullYear();        // visible month for the grid
+let calM = _now0.getMonth();           // 0-based
 function agendaCardEl(entry) {
   const { kind, ref: it } = entry;
   const row = el('div', 'item' + (kind === 'ref' ? ' ref' : ' prio-' + it.priority) + (it.id === pendingEnterId ? ' entering' : ''));
@@ -1305,24 +1331,24 @@ function agendaCardEl(entry) {
   row.append(cb.el, main, acts);
   return row;
 }
-function renderKalender() {
+// Sort agenda entries: date asc, then high→normal→low priority (tasks).
+function agendaSort(a, b) {
+  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+  const pr = (e) => e.kind === 'task' ? PRIO_RANK[e.ref.priority] : 1;
+  return pr(a) - pr(b);
+}
+// Render the Liste view (agenda buckets) into #agendaRoot.
+function renderAgendaList() {
   const root = document.getElementById('agendaRoot');
   if (!root) return;
   root.textContent = '';
   const entries = agendaEntries();
   if (!entries.length) {
     root.appendChild(el('div', 'list-empty', 'Ingenting planlagt.'));
-    pendingEnterId = null;
     return;
   }
-  // sort within bucket: date asc, then high→normal→low priority (tasks)
-  const sortFn = (a, b) => {
-    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    const pr = (e) => e.kind === 'task' ? PRIO_RANK[e.ref.priority] : 1;
-    return pr(a) - pr(b);
-  };
   AGENDA_BUCKETS.forEach(bucket => {
-    const items = entries.filter(e => agendaBucket(e.date) === bucket.key).sort(sortFn);
+    const items = entries.filter(e => agendaBucket(e.date) === bucket.key).sort(agendaSort);
     if (!items.length) return;
     const group = el('div', 'agenda-group');
     group.appendChild(el('div', 'agenda-label' + (bucket.key === 'forfalt' ? ' overdue' : ''), bucket.label));
@@ -1331,6 +1357,157 @@ function renderKalender() {
     group.appendChild(list);
     root.appendChild(group);
   });
+}
+
+// 'YYYY-MM-DD' for a y/m(0-based)/day triple.
+function ymd(y, m, day) {
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+// Jump the grid to a real month and (if visible) re-render.
+function setCalMonth(y, m) {
+  // normalize month overflow/underflow into the year
+  calY = y + Math.floor(m / 12);
+  calM = ((m % 12) + 12) % 12;
+  if (kalenderView === 'maned') renderMonthGrid();
+}
+
+// Build the toolbar (Liste/Måned toggle + — for Måned — month nav).
+function renderKalToolbar() {
+  const bar = document.getElementById('kalToolbar');
+  if (!bar) return;
+  bar.textContent = '';
+
+  const seg = buildSegmented({
+    value: kalenderView,
+    items: [{ value: 'liste', label: 'Liste' }, { value: 'maned', label: 'Måned' }],
+    onChange: (v) => { kalenderView = v; renderKalender(); },
+  });
+  bar.appendChild(seg.el);
+
+  if (kalenderView === 'maned') {
+    const nav = el('div', 'month-nav');
+    const prev = el('button', 'icon-btn sm'); prev.innerHTML = icon('chevron-left');
+    prev.setAttribute('aria-label', 'Forrige måned');
+    prev.addEventListener('click', () => setCalMonth(calY, calM - 1));
+    const label = el('span', 'month-label', MONTHS_FULL[calM] + ' ' + calY);
+    const next = el('button', 'icon-btn sm'); next.innerHTML = icon('chevron-right');
+    next.setAttribute('aria-label', 'Neste måned');
+    next.addEventListener('click', () => setCalMonth(calY, calM + 1));
+    nav.append(prev, label, next);
+
+    const today = el('button', 'btn sm'); today.type = 'button'; today.textContent = 'I dag';
+    today.addEventListener('click', () => {
+      const n = new Date();
+      setCalMonth(n.getFullYear(), n.getMonth());
+    });
+    nav.appendChild(today);
+    bar.appendChild(nav);
+  }
+}
+
+// One compact item pill inside a day cell.
+function monthItemPill(entry) {
+  const { kind, ref: it } = entry;
+  const overdue = isOverdue(entry.date);
+  const pill = el('button', 'mc-item' + (kind === 'ref' ? ' ref' : ' task') + (overdue ? ' overdue' : ''));
+  pill.type = 'button';
+  pill.appendChild(el('span', 'mc-dot'));
+  pill.appendChild(el('span', 'mc-item-title', it.title || (kind === 'ref' ? 'Referat' : 'Gjøremål')));
+  const tipKind = kind === 'ref' ? 'Referat' : 'Gjøremål';
+  pill.dataset.tip = tipKind + (it.title ? ' · ' + it.title : '');
+  // Clicking opens the linked contact if any; otherwise jumps to its page.
+  pill.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (it.contactId && contactById(it.contactId)) openContactDetail(it.contactId);
+    else setView(kind === 'ref' ? 'referat' : 'tasks');
+  });
+  return pill;
+}
+
+// Render the Måned view (month grid) into #monthRoot.
+const MAX_CELL_ITEMS = 3;
+function renderMonthGrid() {
+  const root = document.getElementById('monthRoot');
+  if (!root) return;
+  root.textContent = '';
+  renderKalToolbar(); // keep the month label in sync
+
+  // Group entries by date for O(1) cell lookup.
+  const byDate = {};
+  agendaEntries().forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+
+  // weekday header row (Mon–Sun)
+  const head = el('div', 'mc-head');
+  DOW.forEach(d => head.appendChild(el('div', 'mc-dow', d)));
+  root.appendChild(head);
+
+  // First cell = Monday on/just before the 1st. getDay(): 0=Sun..6=Sat → Mon-index.
+  const first = new Date(calY, calM, 1);
+  const mondayIdx = (first.getDay() + 6) % 7; // 0 = Monday
+  const start = new Date(calY, calM, 1 - mondayIdx);
+
+  const today = todayStr();
+  const body = el('div', 'mc-grid');
+  // 6 weeks always = stable height; trailing weeks that are fully next-month are dropped.
+  const weeks = [];
+  for (let w = 0; w < 6; w++) {
+    const cells = [];
+    for (let d = 0; d < 7; d++) {
+      const idx = w * 7 + d;
+      const date = new Date(start);
+      date.setDate(start.getDate() + idx);
+      cells.push(date);
+    }
+    weeks.push(cells);
+  }
+  // Drop a 6th week if it's entirely outside the visible month.
+  const lastWeek = weeks[5];
+  if (lastWeek.every(dt => dt.getMonth() !== calM)) weeks.pop();
+
+  weeks.forEach(cells => {
+    cells.forEach(date => {
+      const inMonth = date.getMonth() === calM;
+      const ds = ymd(date.getFullYear(), date.getMonth(), date.getDate());
+      const isToday = ds === today;
+      const cell = el('div', 'mc-cell'
+        + (inMonth ? '' : ' muted')
+        + (isToday ? ' today' : ''));
+
+      const dnum = el('div', 'mc-daynum', String(date.getDate()));
+      cell.appendChild(dnum);
+
+      const items = (byDate[ds] || []).slice().sort(agendaSort);
+      if (items.length) {
+        const list = el('div', 'mc-items');
+        items.slice(0, MAX_CELL_ITEMS).forEach(e => list.appendChild(monthItemPill(e)));
+        cell.appendChild(list);
+        if (items.length > MAX_CELL_ITEMS) {
+          const more = el('div', 'mc-more', '+' + (items.length - MAX_CELL_ITEMS) + ' til');
+          more.dataset.tip = items.slice(MAX_CELL_ITEMS).map(e => e.ref.title || (e.kind === 'ref' ? 'Referat' : 'Gjøremål')).join('\n');
+          cell.appendChild(more);
+        }
+        // compact/narrow fallback: dot summary (shown via CSS under a width breakpoint)
+        const dots = el('div', 'mc-dots');
+        items.slice(0, 5).forEach(e => dots.appendChild(el('span', 'mc-dot' + (e.kind === 'ref' ? ' ref' : ' task') + (isOverdue(e.date) ? ' overdue' : ''))));
+        if (items.length > 5) dots.appendChild(el('span', 'mc-dots-count', '+' + (items.length - 5)));
+        cell.appendChild(dots);
+      }
+      body.appendChild(cell);
+    });
+  });
+  root.appendChild(body);
+}
+
+function renderKalender() {
+  const list = document.getElementById('agendaRoot');
+  const month = document.getElementById('monthRoot');
+  if (!list || !month) return;
+  renderKalToolbar();
+  const showMonth = kalenderView === 'maned';
+  list.classList.toggle('hidden', showMonth);
+  month.classList.toggle('hidden', !showMonth);
+  if (showMonth) renderMonthGrid();
+  else renderAgendaList();
   pendingEnterId = null;
 }
 
@@ -1346,13 +1523,20 @@ function greetingFor(hour) {
   return 'God kveld';
 }
 function capitalizeFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
-// One stat tile: a big number (optionally tinted) + label + optional subline.
-function statTile({ value, label, sub, tone }) {
-  const card = el('div', 'stat-tile');
+// One stat tile: a tinted icon badge + big number (optionally tinted) + label
+// + optional subline. `tone` ('danger'|'accent'|'ok'|null) tints num + badge.
+function statTile({ value, label, sub, tone, icon: ic }) {
+  const card = el('div', 'stat-tile' + (tone ? ' tone-' + tone : ''));
+  if (ic) {
+    const badge = el('span', 'stat-ic'); badge.innerHTML = icon(ic);
+    card.appendChild(badge);
+  }
+  const txt = el('div', 'stat-txt');
   const num = el('div', 'stat-num' + (tone ? ' ' + tone : ''), String(value));
-  card.appendChild(num);
-  card.appendChild(el('div', 'stat-label', label));
-  if (sub != null) card.appendChild(el('div', 'stat-sub', sub));
+  txt.appendChild(num);
+  txt.appendChild(el('div', 'stat-label', label));
+  if (sub != null) txt.appendChild(el('div', 'stat-sub', sub));
+  card.appendChild(txt);
   return card;
 }
 function renderHjem() {
@@ -1388,19 +1572,19 @@ function renderHjem() {
   statsEl.textContent = '';
   statsEl.appendChild(statTile({
     value: contactedPct + '%', label: 'Kontaktet denne måneden',
-    sub: contactedN + '/' + total,
+    sub: contactedN + '/' + total, icon: 'user',
   }));
   statsEl.appendChild(statTile({
     value: overdueN, label: 'Forfalt', tone: overdueN > 0 ? 'danger' : null,
-    sub: overdueN === 1 ? 'oppgave' : 'oppgaver',
+    sub: overdueN === 1 ? 'oppgave' : 'oppgaver', icon: 'alert-triangle',
   }));
   statsEl.appendChild(statTile({
     value: todayN, label: 'I dag', tone: todayN > 0 ? 'accent' : null,
-    sub: todayN === 1 ? 'oppgave' : 'oppgaver',
+    sub: todayN === 1 ? 'oppgave' : 'oppgaver', icon: 'calendar',
   }));
   statsEl.appendChild(statTile({
     value: weekN, label: 'Denne uken',
-    sub: weekN === 1 ? 'oppgave' : 'oppgaver',
+    sub: weekN === 1 ? 'oppgave' : 'oppgaver', icon: 'check-square',
   }));
 
   // --- "I dag" agenda (today + overdue), reusing the kalender card builder ---
@@ -1418,12 +1602,14 @@ function renderHjem() {
     due.forEach(e => todayEl.appendChild(agendaCardEl(e)));
   }
 
+  // --- Hurtignotat (quick-note capture + recent notes) ---
+  renderQuickNotes();
+
   // --- shortcuts ---
   if (shortEl) {
     shortEl.textContent = '';
     [
-      { nav: 'tasks', icon: 'check-square', label: 'Gjøremål' },
-      { nav: 'referat', icon: 'pen-line', label: 'Referat' },
+      { nav: 'tasks', icon: 'check-square', label: 'Gjøremål & referat' },
       { nav: 'kalender', icon: 'calendar', label: 'Kalender' },
       { nav: 'oversikt', icon: 'grid', label: 'Oversikt' },
     ].forEach(s => {
@@ -1436,16 +1622,86 @@ function renderHjem() {
   }
 }
 
+// --- quick-note capture ---------------------------------------------
+const MAX_HJEM_NOTES = 5;          // how many recent notes the Hjem card shows
+function addNote(text) {
+  const t = (text || '').trim();
+  if (!t) return false;
+  state.notes.unshift({ id: uid(), text: t.slice(0, 2000), createdAt: Date.now() });
+  scheduleSave();
+  return true;
+}
+function deleteNote(id) {
+  const before = state.notes.length;
+  state.notes = state.notes.filter(n => n.id !== id);
+  if (state.notes.length !== before) { scheduleSave(); renderQuickNotes(); }
+}
+// One small note card: text + relative timestamp + delete (x).
+function quickNoteEl(n) {
+  const row = el('div', 'qn-note');
+  const main = el('div', 'qn-note-main');
+  main.appendChild(el('div', 'qn-note-text', n.text));
+  main.appendChild(el('div', 'qn-note-time', relTime(n.createdAt)));
+  const del = el('button', 'qn-note-del'); del.innerHTML = icon('x');
+  del.setAttribute('aria-label', 'Slett notat');
+  del.dataset.tip = 'Slett';
+  del.addEventListener('click', () => deleteNote(n.id));
+  row.append(main, del);
+  return row;
+}
+// Render the input + recent-notes list inside the Hurtignotat card.
+function renderQuickNotes() {
+  const input = document.getElementById('quickNoteInput');
+  const listEl = document.getElementById('quickNoteList');
+  if (!listEl) return;
+  // input + Enter-to-save are bound once (bindQuickNote); here we just paint the list.
+  listEl.textContent = '';
+  const recent = (state.notes || []).slice(0, MAX_HJEM_NOTES);
+  if (!recent.length) {
+    listEl.appendChild(el('div', 'qn-empty', 'Ingen notater ennå — skriv et raskt notat over.'));
+  } else {
+    recent.forEach(n => listEl.appendChild(quickNoteEl(n)));
+  }
+  // hint at any overflow beyond what we show
+  const extra = (state.notes || []).length - recent.length;
+  if (extra > 0) listEl.appendChild(el('div', 'qn-more', '+' + extra + ' eldre ' + (extra === 1 ? 'notat' : 'notater')));
+  void input; // referenced for clarity; binding lives in bindQuickNote
+}
+// Wire the Hurtignotat input once: Enter (without Shift) or the button saves.
+function bindQuickNote() {
+  const input = document.getElementById('quickNoteInput');
+  const addBtn = document.getElementById('quickNoteAdd');
+  if (!input || !addBtn) return;
+  const save = () => {
+    if (addNote(input.value)) { input.value = ''; renderQuickNotes(); input.focus(); }
+  };
+  addBtn.addEventListener('click', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+  });
+}
+
 // =====================================================================
 // nav / badges / year
 // =====================================================================
 function renderBadges() {
-  const t = state.tasks.filter(x => !x.done).length;
-  const r = state.referater.filter(x => !x.done).length;
-  document.getElementById('navTasks').textContent = t ? String(t) : '';
-  document.getElementById('navReferat').textContent = r ? String(r) : '';
+  // combined view → single badge of open gjøremål + referater
+  const open = state.tasks.filter(x => !x.done).length + state.referater.filter(x => !x.done).length;
+  const badge = document.getElementById('navTasks');
+  if (badge) badge.textContent = open ? String(open) : '';
 }
 function setView(v) {
+  // 'referat' is now part of the combined 'tasks' view — alias it, and once the
+  // page is shown, reveal + scroll to the referat column so flashes land there.
+  if (v === 'referat') {
+    setView('tasks');
+    const wrap = document.getElementById('refActive');
+    if (wrap) {
+      const col = wrap.closest('[data-col="referat"]') || wrap;
+      requestAnimationFrame(() => col.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    }
+    return;
+  }
   state.view = v;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.nav === v));
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.dataset.view === v));
@@ -1706,12 +1962,29 @@ function bind() {
   document.getElementById('yearPrev').addEventListener('click', () => setYear(-1));
   document.getElementById('yearNext').addEventListener('click', () => setYear(1));
 
+  bindQuickNote();
   bindSettings();
 }
 
 // =====================================================================
 // settings: apply (CSS vars + zoom) — unchanged contract; extended for tokens
 // =====================================================================
+// Auto ("Standard") input-field fill for theme `t`: a colour that CLEARLY
+// stands out from both the window (--bg) and the card surface (panel) so fields
+// never blend into the panel. Mirrors the surface maths in applySettings.
+//   dark  → a touch lighter than the panel (+ a faint accent tint)
+//   light → pull the panel back toward the darker window bg (+ faint accent tint)
+//           so the field reads as a distinct, slightly recessed inset.
+// Returns a concrete #rrggbb so the colour picker can open on it.
+function deriveFieldBg(t) {
+  const accentNow = state.settings.accent || t.accent;
+  const dark = hexLuminance(t.bg) < 0.5;
+  const s1 = t.panel;
+  return dark
+    ? mixHex(mixHex(s1, '#ffffff', 0.09), accentNow, 0.06)
+    : mixHex(mixHex(s1, t.bg, 0.45), accentNow, 0.05);
+}
+
 function applySettings() {
   const st = state.settings, root = document.documentElement.style;
   const t = allThemes()[st.theme] || THEMES.lys;
@@ -1744,6 +2017,14 @@ function applySettings() {
   root.setProperty('--surface-1', s1);
   root.setProperty('--surface-2', s2);
   root.setProperty('--surface-3', s3);
+  // input-field background (--field-bg). Explicit user colour wins; otherwise
+  // derive a fill that CLEARLY stands out from both the window (--bg) and the
+  // card surface (s1 / surface-1) so fields never disappear into the panel.
+  //   dark  → a touch lighter than the panel (lifts off the dark card)
+  //   light → pull the panel back toward the (darker) window bg + a faint accent
+  //           tint, so the field reads as a distinct, slightly recessed inset
+  //           against the near-white card. Stays well clear of --bg too.
+  root.setProperty('--field-bg', st.fieldColor || deriveFieldBg(t));
   const f = FONTS.find(x => x.key === st.font) || FONTS[0];
   root.setProperty('--font', f.stack);
   // heading font: explicit override wins, else the theme's "vibe" head font
@@ -1779,7 +2060,7 @@ function applySettings() {
 }
 
 // settings controls (built with the new components, native-free)
-let densitySeg, bgSeg, contactedSeg, readingSlider, scaleSlider, radiusSlider, accentWell, gradientSlider;
+let densitySeg, bgSeg, contactedSeg, readingSlider, scaleSlider, radiusSlider, accentWell, fieldWell, gradientSlider;
 
 // Innstillinger: categorized two-column layout (left menu + right pane).
 let settingsCategory = 'tema';
@@ -1885,6 +2166,25 @@ function renderSettings() {
     b.addEventListener('click', () => { st.accent = hex; applySettings(); renderSettings(); refreshDesignLab(); scheduleSave(); });
     sw.appendChild(b);
   });
+
+  // felt-farge: same pattern as Aksentfarge — a live colour well + a "Standard"
+  // reset swatch (back to the auto, stand-out fill derived in applySettings).
+  const fcDefault = !st.fieldColor;
+  const autoFieldBg = deriveFieldBg(t);   // concrete hex the picker can open on
+  const fcEff = (st.fieldColor || autoFieldBg).toLowerCase();
+  const fieldHost = document.getElementById('fieldColor');
+  fieldWell = buildColorWell(fieldHost, {
+    value: fcEff,
+    tip: 'Velg felt-farge',
+    onLive: (hex) => { st.fieldColor = hex; applySettings(); refreshDesignLab(); scheduleSave(); },
+    onDefault: () => { st.fieldColor = ''; applySettings(); refreshDesignLab(); },
+    onClose: () => { renderSettings(); refreshDesignLab(); scheduleSave(); },
+  });
+  const fcsw = document.getElementById('fieldColorSwatches'); fcsw.textContent = '';
+  const fcDefSw = el('button', 'swatch swatch-default' + (fcDefault ? ' active' : '')); fcDefSw.type = 'button';
+  fcDefSw.dataset.tip = 'Standard (skiller seg fra bakgrunnen)'; fcDefSw.style.background = autoFieldBg;
+  fcDefSw.addEventListener('click', () => { st.fieldColor = ''; applySettings(); renderSettings(); refreshDesignLab(); scheduleSave(); });
+  fcsw.appendChild(fcDefSw);
 
   buildThemePreview();
 

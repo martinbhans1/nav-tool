@@ -50,6 +50,14 @@
   --hairline:  color-mix(in srgb, var(--ink) 8%, transparent);
   --hairline-strong: color-mix(in srgb, var(--ink) 14%, transparent);
 
+  /* ===== input-field background =====
+     The fill for text inputs / select+date triggers / combobox. By default it
+     must STAND OUT from the surrounding card surface (set per-theme in
+     applySettings) so fields don't disappear into the panel; the user can also
+     pin it to an explicit colour (Innstillinger → Utseende → Felt-farge).
+     Fallback here keeps the CSS valid if JS hasn't run yet. */
+  --field-bg: var(--surface-2);
+
   /* ===== derived tints (auto-adapt to light/dark) =====
      tints mix against surface-2 (the level controls/chips live on) so a soft
      accent chip on a card stays legible whether the theme is light or dark. */
@@ -506,7 +514,7 @@ body {
 [data-field-style="standard"] .dd-trigger,
 [data-field-style="standard"] .dp-trigger,
 [data-field-style="standard"] .combo-input {
-  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  background: var(--field-bg); border: 1px solid var(--hairline-strong);
   border-radius: var(--r-sm); box-shadow: none;
 }
 [data-field-style="standard"] .field:focus,
@@ -561,7 +569,7 @@ body {
 [data-field-style="skarp"] .dd-trigger,
 [data-field-style="skarp"] .dp-trigger,
 [data-field-style="skarp"] .combo-input {
-  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  background: var(--field-bg); border: 1px solid var(--hairline-strong);
   border-radius: 0; box-shadow: none;
 }
 [data-field-style="skarp"] .field:focus,
@@ -576,7 +584,7 @@ body {
 [data-field-style="pille"] .dd-trigger,
 [data-field-style="pille"] .dp-trigger,
 [data-field-style="pille"] .combo-input {
-  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  background: var(--field-bg); border: 1px solid var(--hairline-strong);
   border-radius: var(--r-pill); box-shadow: none;
   padding-left: calc(var(--control-pad-x) + 4px); padding-right: calc(var(--control-pad-x) + 4px);
 }
@@ -593,7 +601,7 @@ body {
    matches every card's .field as a descendant. Out-specify with the card class
    so each Felt card always previews its own variant. */
 .btn-style-card[data-field-style="standard"] .field {
-  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  background: var(--field-bg); border: 1px solid var(--hairline-strong);
   border-radius: var(--r-sm); box-shadow: none;
 }
 .btn-style-card[data-field-style="myk"] .field {
@@ -605,11 +613,11 @@ body {
   border-radius: 0; box-shadow: none; padding-left: 2px; padding-right: 2px;
 }
 .btn-style-card[data-field-style="skarp"] .field {
-  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  background: var(--field-bg); border: 1px solid var(--hairline-strong);
   border-radius: 0; box-shadow: none;
 }
 .btn-style-card[data-field-style="pille"] .field {
-  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  background: var(--field-bg); border: 1px solid var(--hairline-strong);
   border-radius: var(--r-pill); box-shadow: none;
   padding-left: calc(var(--control-pad-x) + 4px); padding-right: calc(var(--control-pad-x) + 4px);
 }
@@ -703,7 +711,7 @@ body {
 .field {
   width: 100%; height: var(--control-h);
   border: 1px solid var(--hairline-strong); border-radius: var(--r-sm);
-  background: var(--surface-2); color: var(--ink);
+  background: var(--field-bg); color: var(--ink);
   padding: 0 var(--control-pad-x);
   font: inherit; font-size: var(--fs-base);
   transition: border-color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
@@ -734,7 +742,7 @@ textarea.field {
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
   border: 1px solid var(--hairline-strong); border-radius: var(--r-sm);
   padding: 0 var(--control-pad-x);
-  background: var(--surface-2); color: var(--ink); cursor: pointer;
+  background: var(--field-bg); color: var(--ink); cursor: pointer;
   font: inherit; font-size: var(--fs-base);
   transition: border-color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
 }
@@ -877,7 +885,7 @@ textarea.field {
   width: 100%; height: var(--control-h);
   display: flex; align-items: center; gap: 7px; line-height: 1;
   border: 1px solid var(--hairline-strong); border-radius: var(--r-sm); padding: 0 var(--control-pad-x);
-  background: var(--surface-2); color: var(--ink); cursor: pointer; font: inherit; font-size: var(--fs-base);
+  background: var(--field-bg); color: var(--ink); cursor: pointer; font: inherit; font-size: var(--fs-base);
   transition: border-color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
 }
 .dp-trigger:hover { border-color: color-mix(in srgb, var(--ink) 22%, transparent); }
@@ -1075,12 +1083,103 @@ textarea.field {
 [data-theme="estetisk"] .agenda-label { font-family: var(--font-head); letter-spacing: .04em; text-transform: none; }
 
 /* =====================================================================
+   KALENDER — Måned (month grid) view. 7-col Mon–Sun, hairline cells,
+   compact item pills (accent = gjøremål, green = referat), overflow "+N".
+   ===================================================================== */
+.month-nav { display: flex; align-items: center; gap: var(--sp-1); }
+.month-label {
+  font-family: var(--font-head); font-weight: var(--fw-semibold);
+  font-size: var(--fs-md); min-width: 132px; text-align: center;
+  letter-spacing: -.01em;
+}
+.month-nav .btn.sm { margin-left: var(--sp-2); }
+
+.month-card {
+  flex: 1; min-height: 0; padding: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.mc-head {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--hairline); flex-shrink: 0;
+}
+.mc-dow {
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+  text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+}
+.mc-dow:nth-child(6), .mc-dow:nth-child(7) { color: var(--faint); } /* Lø/Sø */
+.mc-grid {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 1fr; gap: 0;
+}
+.mc-cell {
+  border-right: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: var(--sp-1) var(--sp-1) var(--sp-2);
+  min-height: 78px; min-width: 0; overflow: hidden;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.mc-cell:nth-child(7n) { border-right: 0; }
+.mc-grid > .mc-cell:nth-last-child(-n+7) { border-bottom: 0; }
+.mc-cell.muted { background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.mc-cell.muted .mc-daynum { color: var(--faint); }
+.mc-daynum {
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted);
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-pill); flex-shrink: 0; align-self: flex-start;
+}
+.mc-cell.today .mc-daynum { background: var(--accent); color: #fff; font-weight: var(--fw-semibold); }
+.mc-cell.today { background: var(--accent-soft); }
+
+.mc-items { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mc-item {
+  display: flex; align-items: center; gap: var(--sp-1);
+  width: 100%; text-align: left; border: 0; cursor: pointer;
+  font: inherit; font-size: var(--fs-xs); line-height: 1.3;
+  padding: 2px var(--sp-1); border-radius: var(--r-xs, 5px);
+  background: var(--accent-soft); color: var(--ink);
+  transition: filter var(--t-fast) var(--ease-out);
+}
+.mc-item.ref { background: var(--ok-soft); }
+.mc-item.overdue { background: var(--danger-soft); }
+.mc-item:hover { filter: brightness(1.04); }
+.mc-item:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-ring); }
+.mc-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mc-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accent);
+}
+.mc-dot.ref { background: var(--ok); }
+.mc-dot.task { background: var(--accent); }
+.mc-dot.overdue { background: var(--danger); }
+.mc-more { font-size: var(--fs-xs); color: var(--muted); padding: 0 var(--sp-1); }
+
+/* dot-summary fallback for narrow widths — hidden by default */
+.mc-dots { display: none; flex-wrap: wrap; align-items: center; gap: 3px; padding: 2px var(--sp-1); }
+.mc-dots-count { font-size: 9px; color: var(--muted); }
+
+/* Narrow / split-screen: drop pill detail to dot summary, shrink cells */
+@media (max-width: 700px) {
+  .mc-items, .mc-more { display: none; }
+  .mc-dots { display: flex; }
+  .mc-cell { min-height: 52px; padding: var(--sp-1); }
+  .mc-daynum { width: 20px; height: 20px; font-size: var(--fs-xs); }
+  .mc-dow { padding: var(--sp-1) var(--sp-2); }
+}
+
+[data-density="compact"] .mc-cell { min-height: 64px; }
+[data-density="compact"] .mc-item { padding: 1px var(--sp-1); }
+
+/* =====================================================================
    HJEM (dashboard / landing) — greeting, stat tiles, today's agenda,
    quick-link shortcuts. All token-driven; adapts to density + themes.
    ===================================================================== */
+/* Stat tiles: 4-across on wide. Snap to a clean 2×2 (never 3+1 orphan) at
+   tablet/split-screen widths, then 1 column only when truly tiny. */
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--sp-3);
   margin-bottom: var(--sp-6);
 }
@@ -1089,14 +1188,27 @@ textarea.field {
   border: 1px solid var(--hairline);
   border-radius: var(--r);
   box-shadow: var(--elev-1);
-  padding: var(--sp-4) var(--sp-4) var(--sp-3);
-  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--sp-4);
+  display: flex; align-items: flex-start; gap: var(--sp-3);
   transition: box-shadow var(--t-base) var(--ease-out), transform var(--t-base) var(--ease-out);
 }
 .stat-tile:hover { box-shadow: var(--elev-2); }
+.stat-ic {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.stat-ic svg { width: var(--icon-sm); height: var(--icon-sm); }
+.stat-tile.tone-danger .stat-ic { background: color-mix(in srgb, var(--danger) 14%, var(--surface-2)); color: var(--danger); }
+.stat-tile.tone-accent .stat-ic { background: var(--accent-soft); color: var(--accent); }
+.stat-tile.tone-ok .stat-ic { background: color-mix(in srgb, var(--ok) 14%, var(--surface-2)); color: var(--ok); }
+.stat-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .stat-num {
   font-family: var(--font-head);
-  font-size: calc(var(--fs-xl) * 1.45);
+  font-size: calc(var(--fs-xl) * 1.35);
   font-weight: var(--fw-bold);
   line-height: 1.05; letter-spacing: -.02em;
   color: var(--ink);
@@ -1106,9 +1218,48 @@ textarea.field {
 .stat-label { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); margin-top: var(--sp-1); }
 .stat-sub { font-size: var(--fs-xs); color: var(--faint); }
 
-.hjem-grid { display: flex; flex-direction: column; gap: var(--sp-5); }
+@media (max-width: 900px) {
+  .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .stat-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* "I dag" + "Hurtignotat" side by side on wide; stacked on narrow. */
+.hjem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5); align-items: start; }
+.hjem-col { min-width: 0; }
+@media (max-width: 900px) {
+  .hjem-grid { grid-template-columns: minmax(0, 1fr); }
+}
 .hjem-block-head { margin-bottom: var(--sp-3); }
 .hjem-h2 { font-family: var(--font-head); font-size: var(--fs-lg); font-weight: var(--fw-semibold); letter-spacing: -.01em; }
+
+/* Hurtignotat (quick-note capture) */
+.qn-card { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
+.qn-input-row { display: flex; flex-direction: column; gap: var(--sp-2); }
+.qn-input { resize: vertical; min-height: calc(var(--control-h) + var(--sp-3)); width: 100%; }
+.qn-add { align-self: flex-end; }
+.qn-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+.qn-empty { color: var(--faint); font-size: var(--fs-sm); padding: var(--sp-2) 0; }
+.qn-note {
+  display: flex; align-items: flex-start; gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+}
+.qn-note-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.qn-note-text { font-size: var(--fs-sm); color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.qn-note-time { font-size: var(--fs-xs); color: var(--faint); }
+.qn-note-del {
+  flex-shrink: 0; width: 24px; height: 24px; display: grid; place-items: center;
+  border: 0; background: transparent; color: var(--faint); cursor: pointer;
+  border-radius: var(--r-xs);
+  transition: color var(--t-base) var(--ease-out), background var(--t-base) var(--ease-out);
+}
+.qn-note-del:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.qn-note-del svg { width: var(--icon-sm); height: var(--icon-sm); }
+.qn-more { font-size: var(--fs-xs); color: var(--faint); padding-top: 2px; }
 
 .hjem-shortcuts { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-6); }
 .shortcut {
@@ -1308,6 +1459,35 @@ textarea.field {
 /* =====================================================================
    FORM CARDS (tasks / referat)
    ===================================================================== */
+/* ---------------------------------------------------------------------
+   Two-column layout — Gjøremål (left) + Referat (right).
+   Side by side on wide screens; stacks vertically under ~860px so it
+   stays usable in split-screen / tablet widths. */
+.dual-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-6);
+  align-items: start;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.dual-col { display: flex; flex-direction: column; min-width: 0; }
+.col-head {
+  font-family: var(--font-head);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -.01em;
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+}
+@media (max-width: 860px) {
+  .dual-cols { grid-template-columns: minmax(0, 1fr); gap: var(--sp-5); }
+}
+[data-density="compact"] .dual-cols { gap: var(--sp-5); }
+[data-density="compact"] .col-head { font-size: var(--fs-md); margin-bottom: var(--sp-2); }
+
 .form-card { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); flex-shrink: 0; margin-bottom: var(--sp-4); }
 .form-card .f-title.field { font-size: var(--fs-md); font-weight: var(--fw-medium); }
 .f-row { display: flex; gap: var(--sp-3); align-items: flex-end; flex-wrap: wrap; }
