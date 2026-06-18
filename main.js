@@ -5,7 +5,7 @@
 // The renderer is locked down (contextIsolation on, nodeIntegration off,
 // sandboxed) and talks to disk only through the IPC handlers below.
 
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -98,8 +98,17 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   buildMenu();
+  // Always render from the files on disk, never a stale compiled cache. Electron
+  // keeps a V8 code cache + disk cache for the file:// renderer keyed per app;
+  // after an update (or while iterating in dev) the OLD cached renderer can be
+  // served, so the UI looks unchanged even though the code changed. Clearing on
+  // launch is negligible for a local app and guarantees you see the real build.
+  try {
+    await session.defaultSession.clearCodeCaches({ urls: [] });
+    await session.defaultSession.clearCache();
+  } catch (_) { /* ignore — not worth blocking startup */ }
   createWindow();
   // Auto-update from GitHub Releases. No-ops in dev / when unpackaged, and any
   // failure (offline, no release yet) is swallowed so it never blocks the app.
