@@ -1,98 +1,153 @@
 # nav-tool — "Oppfølging"
 
-A local, offline Windows desktop app (Electron) for NAV-style follow-up work:
-a month-by-month **kontakt-oversikt** (contacts as rows, Jan–Des as columns,
-contacted toggles + % per month), **gjøremål** (tasks: title/note/due/priority),
-**referat-påminnelser** (reminders to write referater in NAV's own system — not
-the text), **notater**, and a rich **Innstillinger** view (themes, accent, font,
-density, reading size, background, corner radius — all CSS-variable driven).
+A local, offline Windows desktop app (Electron) for NAV-style follow-up work.
+Single-window, frameless, custom design system, Norwegian UI. Data is sensitive
+→ **everything local, initials only, zero network** (except the optional GitHub
+auto-update check).
+
+## Views (left sidebar nav)
+- **Hjem** — dashboard / default landing. Time-based greeting + date, four live
+  stat tiles (Kontaktet denne måneden %, Forfalt, I dag, Denne uken), today's +
+  overdue agenda inline, quick-link shortcuts.
+- **Oversikt** — month grid: contacts as rows, Jan–Des as columns, contacted
+  toggle cells + per-month % footer (sticky). Click a month **header** to
+  bulk-mark everyone that month (confirm modal unless the column is empty).
+  Click a person's **initials** → Kontakt-detalj modal.
+- **Gjøremål** — tasks (title/note/due/priority/person), add + active/done lists,
+  enter/leave animations, "+1 dag" snooze.
+- **Referat** — reminders to write referater in NAV's own system (not the text).
+- **Kalender** — forward-looking agenda: tasks (by due) + referater (by date)
+  bucketed Forfalt / I dag / I morgen / Denne uken / Senere; quick actions.
+- **Innstillinger** — categorized settings (see below).
+- **Designlab** — the live **component Lab**: pick a style for Knapper / Felt /
+  Nedtrekk and it applies app-wide instantly (per-card previews, AKTIV badge).
+- **Notater** — hidden for now (`.nav-item.hidden`); single textarea, kept but
+  not exposed. Re-enable / rebuild as structured notes if wanted.
+- **Søk** — Ctrl/Cmd+K command palette (also a sidebar affordance): searches
+  contacts/tasks/referater, jumps to the contact detail or the relevant view.
+- **Kontakt-detalj** — modal (`openContactDetail(id)`): a person's year contact
+  history (clickable month pills), their tasks + referater, scoped quick-add,
+  Fjern kontakt.
 
 ## Privacy (hard requirement)
-Sensitive personal data → **everything is local, initials only, zero network.**
-- The renderer CSP blocks all connections; the UI only touches disk via IPC.
+- Renderer CSP blocks all connections; UI touches disk only via IPC.
 - Data lives in ONE local JSON file in the OS user-data dir
-  (`navtool-data.json`; *Fil → Vis datafil i mappe*). It is **never** committed
-  and never leaves the machine. The only network the app makes is the
-  auto-update check to GitHub Releases (see below).
+  (`navtool-data.json`; *Fil → Vis datafil i mappe* or Innstillinger → Sikkerhetskopi).
+  Never committed, never leaves the machine. Only network = the auto-update check.
 
 ## Run / build
 ```bash
 npm install
-npm start            # dev (Electron, live code)
-npm run dist         # build a local Windows installer into dist/  (no publish)
+npm start      # dev (electron .) — live code from renderer/
+npm run dist   # local unsigned installer into dist/ (no publish)
 ```
-`dist/` and `node_modules/` are gitignored.
+`dist/` and `node_modules/` are gitignored. `build/icon.ico` is the app icon
+(set via `build.win.icon`).
 
-## GitHub
-- Repo: **https://github.com/martinbhans1/nav-tool** — **public** (so the partner
-  can download from Releases and auto-update without any token/account).
-- `gh` is authed as **martinbhans1** (`gh auth token` yields the token).
-- Public is fine: no secrets in the code, and her data is never in the repo.
+## Architecture (single-page renderer, NO bundler — plain global functions)
+- **`main.js`** — frameless window (`frame:false`); IPC: `data:load/save/dataPath/
+  reveal/export/import` and window controls `win:minimize/maximizeToggle/close/
+  isMaximized` (+ `win:maximized` event). **Flush-on-close**: on `close` it holds
+  the window, sends `app:flush`, renderer saves then `app:flushed` → destroy (so a
+  debounced save is never lost). **Cache-clear guard**: on `whenReady` it
+  `clearCodeCaches()` + `clearCache()` before creating the window (see Gotchas).
+  Auto-updater wrapped in try/catch (no-ops unpacked/offline).
+- **`preload.js`** — exposes `window.api`: `load/save/exportBackup/importBackup/
+  dataPath/revealData`, `win.{minimize,maximizeToggle,close,isMaximized,onMaximizeChange}`,
+  `onFlush/flushed`.
+- **`renderer/index.html`** — frameless titlebar + sidebar nav + a `<section
+  class="view" data-view="X">` per view.
+- **`renderer/app.js`** — everything: state model, helpers, render fns, the
+  settings/theming engine, the Lab, the search palette. Key pieces:
+  - **State**: `{version, view, year, contacts[{id,initials}], contacted{cid:{year:[bool×12]}},
+    tasks[{id,title,note,due,priority,contactId,done,doneAt,createdAt}],
+    referater[{id,title,note,date,...}], summary, customThemes[], settings{…}}`.
+    `defaultState()` / `normalize()` (validates + migrates v1) / persisted via
+    debounced `scheduleSave()`.
+  - **Helpers** (reuse these): `todayStr, addDays, fmtDate` (reads
+    `settings.dateFormat`), `isOverdue, clamp, el, icon` (Lucide `LUCIDE` map),
+    `hydrateIcons, contactById, initialsFor, cellGet/cellSet, personChip, dueChip`.
+  - **Component builders** (all native-free): `buildDropdown, buildCombo,
+    buildDatePicker, buildSlider` (onInput live + onChange on release),
+    `buildSegmented, buildCheckbox, buildToggle, buildColorWell` (opens an HSV
+    `colorPickerModal`), `buildMenu, openModal, confirmModal`. **NEVER** a native
+    `<select>/<input type=date|checkbox|range|color>/<datalist>` (plain text
+    inputs are fine).
+  - **Theming**: `applySettings()` writes the palette + tokens as CSS variables and
+    sets `data-theme/density/contacted/bg/motion/btn-style/field-style/dd-style`
+    on `<html>`. `THEMES` = built-in vibe bundles; `allThemes()` merges in
+    `state.customThemes`; use it for every theme lookup. Custom themes: builder in
+    the Tema settings category derives a full palette from bg/ink/accent.
+  - **Settings**: `renderSettings()` builds a categorized two-column view
+    (`SETTINGS_CATS` + `settingsCategory`): Tema (grid + accent + live
+    `buildThemePreview` + "Lag eget tema") / Utseende / Tekst & størrelse / Atferd
+    / Sikkerhetskopi / Tilbakestill. Settings keys: `theme, accent, font, scale,
+    radius, density, readingSize, background, contacted, btnStyle, fieldStyle,
+    ddStyle, gradientStrength, motion, headingFont, landingView, defaultPriority,
+    defaultDue, dateFormat`. Launch opens `settings.landingView`.
+  - **Lab**: `renderComponentLab()` with `BTN_STYLES/FIELD_STYLES/DD_STYLES`;
+    each applies app-wide via the `data-*-style` attrs + `[data-btn-style="x"] …`
+    CSS, scoped also onto each preview card.
+  - **Agenda**: `agendaEntries()/agendaBucket()/agendaCardEl()` power both Kalender
+    and the Hjem "I dag" block; `refreshAgendaViews()` keeps them in sync.
+  - **Search**: Ctrl/Cmd+K palette (`cmdkOpen/Toggle`, bound in `bind()`).
+- **`renderer/styles.css`** — design tokens in `:root` (spacing `--sp-*`, type
+  `--fs-*` × `--fs-mult`, weights, radius `--r*`, `--control-h`, elevation,
+  surfaces lift off `--bg` toward white, `--grad-strength` gradient). All
+  component CSS is token-driven; per-theme tweaks under `[data-theme="…"]`.
 
-## Versioning + releasing (the update pipeline)
-Semver lives in `package.json` `version`. Auto-update compares against it, so
-**every release must bump it.**
+## Conventions
+- **Design system is the source of truth** — token-driven, native-free, offline
+  (self-hosted Geist; Georgia/Palatino system serif). Owner is pedantic about
+  consistency: match existing components, Norwegian UI, no hardcoded hex (derive
+  from `--accent` etc.).
+- **Verify any change headlessly** before declaring done: throwaway `verify.js` →
+  `app.whenReady`, stub the `data:*` + `win:*` ipcMain handlers (and
+  `ipcMain.on('app:flushed')`), hidden frameless `BrowserWindow` (real preload,
+  `show:false`), load `renderer/index.html`, fail on `console-message` level≥2 /
+  `did-fail-load`, assert
+  `querySelectorAll('select,input[type=date],input[type=checkbox],input[type=range],input[type=color],datalist').length===0`.
+  Run `MSYS_NO_PATHCONV=1 ./node_modules/.bin/electron verify.js`; delete after.
 
-To ship an update:
-1. Bump `version` in `package.json` (e.g. `1.0.0` → `1.0.1`). Commit it.
-2. ```bash
-   GH_TOKEN="$(gh auth token)" npm run release
-   ```
-   This runs `electron-builder --publish always`: builds the unsigned NSIS
-   installer and **publishes a non-draft GitHub Release** (tag `v<version>`).
-   `build.publish.releaseType` is `"release"`, so it goes live immediately and
-   the newest becomes GitHub's "latest" — the auto-update target. One command,
-   no manual un-drafting.
+## Gotchas (hard-won)
+- **Per-app cache trap**: `npm start` runs as app name "nav-tool" → cache in
+  `%APPDATA%/nav-tool`; a bare `electron some-script.js` runs as "Electron" →
+  `%APPDATA%/Electron`. A stale renderer can be served after a change/update,
+  making the app "look old" though the files are new. Fixed by the cache-clear
+  guard in `main.js` (clears on every launch). When debugging "old UI", suspect
+  **(1)** this cache, **(2)** the selected **density** (`compact` looks very
+  different), **(3)** the selected **theme** (Sand ≠ Estetisk).
+- Screenshotting a hidden `BrowserWindow` lags one frame (esp. modals/overlays);
+  double-capture or probe the DOM instead.
+- `taskkill` from Git Bash needs `MSYS_NO_PATHCONV=1`. Don't kill all
+  `electron.exe` — other projects (e.g. m3code) run their own.
+- Inspect a running packed app via `--remote-debugging-port` + a Node CDP client
+  (Node 24 has global `WebSocket`).
 
-Each release uploads three assets — **all three are required**, do not delete:
-- `nav-tool-setup-<v>.exe` — the installer she downloads
-- `latest.yml` — the electron-updater manifest (how the app finds new versions)
-- `…​.exe.blockmap` — enables small delta updates
+## Versioning + build rhythm (current)
+Semver in `package.json` `version`. **Currently NOT publishing** (not shown to the
+end user yet). Rhythm while building: bump the **minor** version per feature, commit
+locally, no publish. Now at **1.5.0**.
 
-Download page for her: `https://github.com/martinbhans1/nav-tool/releases/latest`.
+**When ready to ship** (auto-update pipeline, public repo
+`github.com/martinbhans1/nav-tool`, `gh` authed as martinbhans1):
+```bash
+# bump version, commit, then:
+GH_TOKEN="$(gh auth token)" npm run release   # electron-builder --publish always
+```
+Publishes a non-draft Release (tag `v<version>`) with three required assets —
+`nav-tool-setup-<v>.exe`, `latest.yml`, `….exe.blockmap` (don't delete). The
+installed app checks GitHub on launch, downloads a newer release in the
+background, installs on next restart. Latest install page:
+`https://github.com/martinbhans1/nav-tool/releases/latest`.
 
-## Auto-update
-`main.js` (in `app.whenReady`) calls
-`require('electron-updater').autoUpdater.checkForUpdatesAndNotify()`, wrapped in
-try/catch. It **no-ops when unpackaged (dev) or offline**, so it never blocks the
-app. In the installed app it checks GitHub on launch, downloads a newer release
-in the background, and installs on the next restart. `electron-updater` is a
-runtime **dependency** (not devDependency).
+## Caveats
+- **Unsigned** → SmartScreen "Windows beskyttet PC-en din" on first install
+  (*Mer info → Kjør likevel*). A paid cert would remove it; not worth it for
+  personal use.
 
-## Known caveats
-- **Unsigned** → Windows SmartScreen shows "Windows beskyttet PC-en din" on first
-  install (*Mer info → Kjør likevel*). Removing it permanently needs a paid
-  code-signing certificate; not worth it for personal use.
-- **No custom app icon yet** — electron-builder uses the default Electron icon
-  (build log: "application icon is not set"). Add `build.win.icon` (a 256px
-  `.ico`) when an icon exists.
-
-## Handoff — design system in progress (read this first)
-
-**State:** Full custom design system done (no UI library; Lucide icon paths only).
-Tokens in `renderer/styles.css :root` (spacing/type/weight/radius/`--control-h`/
-elevation). Depth = surfaces lift off `--bg` toward white (+7/14/22%) → "emerges
-from dark"; shown in **Designlab** tab. Components are shadcn-style (flat, crisp,
-hairline borders, ring focus), all native-free (custom select/date-picker/checkbox/
-switch/slider/combobox/tooltip/modal). Themes are **vibe bundles** (palette + head
-font + body font + radius + accent); incl warm serif **"Estetisk"**. Geist + Georgia
-serif, self-hosted offline. Theming engine = `applySettings()` in `renderer/app.js`.
-
-**Workflow (owner is extremely pedantic re consistency):** Design Lab is the source
-of truth — build/approve a component THERE before using it anywhere. Keep everything
-token-driven. NEVER a native HTML control. Offline only (no CDN). Norwegian UI.
-
-**Run:** `cd nav-tool && ./node_modules/.bin/electron .`
-**Verify any change** headlessly: throwaway `verify.js` → `app.whenReady`, stub the
-`data:*` ipcMain handlers, hidden BrowserWindow (real preload, show:false), load
-`renderer/index.html`, capture console-message(level>=2)+did-fail-load, assert
-`querySelectorAll('select,input[type=date],input[type=checkbox],input[type=range],input[type=color],datalist').length===0`
-and zero errors; delete verify.js after. (Memory note: close stray Electron windows;
-`taskkill` needs `MSYS_NO_PATHCONV=1`.)
-
-**Next, incrementally (deferred on purpose):**
-1. Notater → structured notes (add/edit/delete, titled) instead of one textarea.
-2. To-dos → completion animation + dopamine/smooth transitions (currently instant disappear).
-3. Contacts on the Oversikt view.
-Then commit + cut **v1.0.1** (bump version → `GH_TOKEN="$(gh auth token)" npm run release`)
-so it auto-updates to her. Repo: github.com/martinbhans1/nav-tool (public).
+## Possible next features (none committed)
+- **Strukturerte notater** — replace the hidden textarea with titled note cards.
+- **Månedsrapport / eksport** — printable monthly summary.
+- **Desktop notifications** — local reminders, *but* nothing has a timestamp yet,
+  so it needs a time model first (deferred).
