@@ -145,10 +145,32 @@ const BTN_STYLES = [
 ];
 const BTN_STYLE_KEYS = BTN_STYLES.map(s => s.key);
 
+// Field styles — the live, app-wide form-field "vibe". Keys live in CSS
+// (`[data-field-style="<key>"] .field` + the input-like surfaces); labels
+// are Norwegian. All token-driven; each defines its own focus state.
+const FIELD_STYLES = [
+  { key: 'standard',   label: 'Standard',  desc: 'Kantet boks — appens grunnlook.' },
+  { key: 'myk',        label: 'Myk',       desc: 'Fylt flate, svak kant.' },
+  { key: 'understrek', label: 'Understrek', desc: 'Kun strek under, ingen boks.' },
+  { key: 'skarp',      label: 'Skarp',     desc: 'Helt rette hjørner.' },
+  { key: 'pille',      label: 'Pille',     desc: 'Helt avrundet.' },
+];
+const FIELD_STYLE_KEYS = FIELD_STYLES.map(s => s.key);
+
+// Dropdown styles — the live, app-wide "vibe" for the floating menu (.pop) used
+// by dropdown / combobox / menu. Keys live in CSS (`[data-dd-style="<key>"] .pop`).
+const DD_STYLES = [
+  { key: 'standard', label: 'Standard', desc: 'Klar overflate — appens grunnlook.' },
+  { key: 'myk',      label: 'Myk',      desc: 'Mykere flate, større runding.' },
+  { key: 'kompakt',  label: 'Kompakt',  desc: 'Tettere rader.' },
+  { key: 'kant',     label: 'Omriss',   desc: 'Tydelig kant, flatere.' },
+];
+const DD_STYLE_KEYS = DD_STYLES.map(s => s.key);
+
 function defaultSettings() {
   return { theme: 'lys', accent: '', font: 'system', scale: 100, radius: 12,
            density: 'comfortable', readingSize: 14, background: 'flat', contacted: 'green',
-           btnStyle: 'solid' };
+           btnStyle: 'solid', fieldStyle: 'standard', ddStyle: 'standard' };
 }
 
 function defaultState() {
@@ -208,6 +230,8 @@ function normalize(s) {
         background: ['flat', 'gradient', 'dots'].includes(si.background) ? si.background : def.background,
         contacted: ['green', 'accent'].includes(si.contacted) ? si.contacted : def.contacted,
         btnStyle: BTN_STYLE_KEYS.includes(si.btnStyle) ? si.btnStyle : def.btnStyle,
+        fieldStyle: FIELD_STYLE_KEYS.includes(si.fieldStyle) ? si.fieldStyle : def.fieldStyle,
+        ddStyle: DD_STYLE_KEYS.includes(si.ddStyle) ? si.ddStyle : def.ddStyle,
       };
     })(),
   };
@@ -1147,6 +1171,8 @@ function applySettings() {
   document.documentElement.dataset.density = st.density;
   document.documentElement.dataset.contacted = st.contacted;
   document.documentElement.dataset.btnStyle = st.btnStyle;  // live app-wide primary-button style
+  document.documentElement.dataset.fieldStyle = st.fieldStyle;  // live app-wide form-field style
+  document.documentElement.dataset.ddStyle = st.ddStyle;  // live app-wide dropdown-menu style
 
   document.body.dataset.bg = st.background;
 }
@@ -1298,6 +1324,7 @@ function bindSettings() {
 // DESIGN LAB — the component + token gallery (source of truth)
 // =====================================================================
 let labBuilt = false;
+let labCategory = 'knapper';  // which Komponent-lab category is shown
 function refreshDesignLab() { if (labBuilt) renderDesignLab(); }
 
 function labSection(title, desc) {
@@ -1324,32 +1351,49 @@ function renderComponentLab(root) {
   const card = el('div', 'card lab-card lab-live');
   const cols = el('div', 'lab-live-cols');
 
-  // left sub-nav: Knapper (active) + Felt/Nedtrekk (disabled, "Snart")
+  // left sub-nav: Knapper / Felt / Nedtrekk — all live, selectable categories
   const nav = el('div', 'lab-subnav');
   const cats = [
-    { key: 'knapper', label: 'Knapper', active: true },
-    { key: 'felt', label: 'Felt', active: false },
-    { key: 'nedtrekk', label: 'Nedtrekk', active: false },
+    { key: 'knapper', label: 'Knapper' },
+    { key: 'felt', label: 'Felt' },
+    { key: 'nedtrekk', label: 'Nedtrekk' },
   ];
+  if (!cats.some(c => c.key === labCategory)) labCategory = 'knapper';
   cats.forEach(c => {
-    const item = el('button', 'lab-subnav-item' + (c.active ? ' active' : ' disabled'));
+    const item = el('button', 'lab-subnav-item' + (c.key === labCategory ? ' active' : ''));
     item.type = 'button';
     item.appendChild(el('span', null, c.label));
-    if (!c.active) { item.appendChild(el('span', 'lab-soon', 'Snart')); item.disabled = true; }
+    item.addEventListener('click', () => {
+      if (labCategory === c.key) return;
+      labCategory = c.key;
+      renderDesignLab();   // swap the right-hand panel to this category's grid
+    });
     nav.appendChild(item);
   });
 
-  // right panel: the Knapper style grid
+  // right panel: the active category's style grid
   const panel = el('div', 'lab-live-panel');
+  if (labCategory === 'felt') buildFieldStyleGrid(panel);
+  else if (labCategory === 'nedtrekk') buildDdStyleGrid(panel);
+  else buildBtnStyleGrid(panel);
+
+  cols.append(nav, panel);
+  card.appendChild(cols);
+  sec.appendChild(card);
+  root.appendChild(sec);
+}
+
+// Knapper — primary-button style cards
+function buildBtnStyleGrid(panel) {
+  const st = state.settings;
   const grid = el('div', 'btn-style-grid');
   BTN_STYLES.forEach(s => {
     const isActive = st.btnStyle === s.key;
     const cardEl = el('button', 'btn-style-card' + (isActive ? ' active' : ''));
     cardEl.type = 'button';
     cardEl.dataset.btnStyle = s.key;  // scopes the preview to THIS style, regardless of global
-    if (isActive) { const badge = el('span', 'btn-style-badge', 'AKTIV'); cardEl.appendChild(badge); }
+    if (isActive) cardEl.appendChild(el('span', 'btn-style-badge', 'AKTIV'));
     const sampleWrap = el('div', 'btn-style-sample');
-    // a real primary button — the preview shows its own variant via the wrapper attr
     const sample = button({ label: 'Legg til', variant: 'primary', icon: 'plus' });
     sample.tabIndex = -1;  // the whole card is the click target
     sampleWrap.appendChild(sample);
@@ -1367,11 +1411,76 @@ function renderComponentLab(root) {
     grid.appendChild(cardEl);
   });
   panel.appendChild(grid);
+}
 
-  cols.append(nav, panel);
-  card.appendChild(cols);
-  sec.appendChild(card);
-  root.appendChild(sec);
+// Felt — form-field style cards. Each card previews its own variant via the
+// data-field-style wrapper, regardless of the global setting.
+function buildFieldStyleGrid(panel) {
+  const st = state.settings;
+  const grid = el('div', 'btn-style-grid');
+  FIELD_STYLES.forEach(s => {
+    const isActive = st.fieldStyle === s.key;
+    const cardEl = el('button', 'btn-style-card' + (isActive ? ' active' : ''));
+    cardEl.type = 'button';
+    cardEl.dataset.fieldStyle = s.key;  // scopes the preview to THIS style
+    if (isActive) cardEl.appendChild(el('span', 'btn-style-badge', 'AKTIV'));
+    const sampleWrap = el('div', 'btn-style-sample');
+    // a real .field text input — shows its own variant via the wrapper attr
+    const inp = document.createElement('input');
+    inp.className = 'field'; inp.type = 'text'; inp.placeholder = 'Skriv her…';
+    inp.tabIndex = -1;
+    sampleWrap.appendChild(inp);
+    const meta = el('div', 'btn-style-meta');
+    meta.appendChild(el('div', 'btn-style-name', s.label));
+    meta.appendChild(el('div', 'btn-style-desc', s.desc));
+    cardEl.append(sampleWrap, meta);
+    cardEl.addEventListener('click', () => {
+      if (state.settings.fieldStyle === s.key) return;
+      state.settings.fieldStyle = s.key;
+      applySettings();        // flips data-field-style on <html> → every .field updates live
+      renderDesignLab();
+      scheduleSave();
+    });
+    grid.appendChild(cardEl);
+  });
+  panel.appendChild(grid);
+}
+
+// Nedtrekk — dropdown-menu (.pop) style cards. Each card shows a static open
+// .pop mock scoped to its own variant via the data-dd-style wrapper.
+function buildDdStyleGrid(panel) {
+  const st = state.settings;
+  const grid = el('div', 'btn-style-grid');
+  DD_STYLES.forEach(s => {
+    const isActive = st.ddStyle === s.key;
+    const cardEl = el('button', 'btn-style-card' + (isActive ? ' active' : ''));
+    cardEl.type = 'button';
+    cardEl.dataset.ddStyle = s.key;  // scopes the preview to THIS style
+    if (isActive) cardEl.appendChild(el('span', 'btn-style-badge', 'AKTIV'));
+    const sampleWrap = el('div', 'btn-style-sample dd-style-sample');
+    // a static, always-open .pop mock so the menu style is visible in the card
+    const pop = el('div', 'pop dd-style-mock');
+    [['Lav', false], ['Normal', true], ['Høy', false]].forEach(([txt, sel]) => {
+      const item = el('div', 'pop-item' + (sel ? ' selected' : ''));
+      item.append(el('span', null, txt));
+      const ck = el('span', 'pop-check'); ck.innerHTML = icon('check'); item.appendChild(ck);
+      pop.appendChild(item);
+    });
+    sampleWrap.appendChild(pop);
+    const meta = el('div', 'btn-style-meta');
+    meta.appendChild(el('div', 'btn-style-name', s.label));
+    meta.appendChild(el('div', 'btn-style-desc', s.desc));
+    cardEl.append(sampleWrap, meta);
+    cardEl.addEventListener('click', () => {
+      if (state.settings.ddStyle === s.key) return;
+      state.settings.ddStyle = s.key;
+      applySettings();        // flips data-dd-style on <html> → every .pop updates live
+      renderDesignLab();
+      scheduleSave();
+    });
+    grid.appendChild(cardEl);
+  });
+  panel.appendChild(grid);
 }
 
 function renderDesignLab() {

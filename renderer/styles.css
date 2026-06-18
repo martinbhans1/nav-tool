@@ -426,6 +426,145 @@ body {
               0 6px 24px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
+/* =====================================================================
+   FIELD STYLES — the live, app-wide form-field "vibe" (Komponent-lab).
+   Scoped by [data-field-style="X"] on <html> (whole app) OR by a card
+   wrapper carrying data-field-style="X" (so each lab preview shows its OWN
+   variant). Applied to .field AND the input-like control surfaces so the
+   form stays consistent: .dd-trigger, .dp-trigger, and the combo input.
+   All token-driven — never a hardcoded hex. Each defines its own focus.
+   ===================================================================== */
+
+/* the shared surfaces these variants restyle together */
+[data-field-style] .field,
+[data-field-style] .dd-trigger,
+[data-field-style] .dp-trigger,
+[data-field-style] .combo-input { /* selector grouping anchor */ }
+
+/* standard — bordered box (restated so a card preview is correct at rest) */
+[data-field-style="standard"] .field,
+[data-field-style="standard"] .dd-trigger,
+[data-field-style="standard"] .dp-trigger,
+[data-field-style="standard"] .combo-input {
+  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sm); box-shadow: none;
+}
+[data-field-style="standard"] .field:focus,
+[data-field-style="standard"] .dd-trigger:focus-visible,
+[data-field-style="standard"] .dp-trigger:focus-visible,
+[data-field-style="standard"] .combo-input:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+/* myk — filled surface, faint hairline border */
+[data-field-style="myk"] .field,
+[data-field-style="myk"] .dd-trigger,
+[data-field-style="myk"] .dp-trigger,
+[data-field-style="myk"] .combo-input {
+  background: var(--surface-3); border: 1px solid var(--hairline);
+  border-radius: var(--r-sm); box-shadow: none;
+}
+[data-field-style="myk"] .field:hover,
+[data-field-style="myk"] .dd-trigger:hover,
+[data-field-style="myk"] .dp-trigger:hover,
+[data-field-style="myk"] .combo-input:hover { border-color: var(--hairline-strong); }
+[data-field-style="myk"] .field:focus,
+[data-field-style="myk"] .dd-trigger:focus-visible,
+[data-field-style="myk"] .dp-trigger:focus-visible,
+[data-field-style="myk"] .combo-input:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+/* understrek — no box, just a bottom border that lights to accent on focus */
+[data-field-style="understrek"] .field,
+[data-field-style="understrek"] .dd-trigger,
+[data-field-style="understrek"] .dp-trigger,
+[data-field-style="understrek"] .combo-input {
+  background: transparent; border: 0; border-bottom: 1px solid var(--hairline-strong);
+  border-radius: 0; box-shadow: none; padding-left: 2px; padding-right: 2px;
+}
+[data-field-style="understrek"] .field:hover,
+[data-field-style="understrek"] .dd-trigger:hover,
+[data-field-style="understrek"] .dp-trigger:hover,
+[data-field-style="understrek"] .combo-input:hover {
+  border-bottom-color: color-mix(in srgb, var(--ink) 22%, transparent);
+}
+[data-field-style="understrek"] .field:focus,
+[data-field-style="understrek"] .dd-trigger:focus-visible,
+[data-field-style="understrek"] .dp-trigger:focus-visible,
+[data-field-style="understrek"] .combo-input:focus {
+  border-bottom-color: var(--accent); box-shadow: 0 1px 0 0 var(--accent);
+}
+
+/* skarp — fully square corners */
+[data-field-style="skarp"] .field,
+[data-field-style="skarp"] .dd-trigger,
+[data-field-style="skarp"] .dp-trigger,
+[data-field-style="skarp"] .combo-input {
+  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  border-radius: 0; box-shadow: none;
+}
+[data-field-style="skarp"] .field:focus,
+[data-field-style="skarp"] .dd-trigger:focus-visible,
+[data-field-style="skarp"] .dp-trigger:focus-visible,
+[data-field-style="skarp"] .combo-input:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+/* pille — fully rounded (single-line controls); textareas stay readable */
+[data-field-style="pille"] .field,
+[data-field-style="pille"] .dd-trigger,
+[data-field-style="pille"] .dp-trigger,
+[data-field-style="pille"] .combo-input {
+  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill); box-shadow: none;
+  padding-left: calc(var(--control-pad-x) + 4px); padding-right: calc(var(--control-pad-x) + 4px);
+}
+[data-field-style="pille"] textarea.field { border-radius: var(--r); }
+[data-field-style="pille"] .field:focus,
+[data-field-style="pille"] .dd-trigger:focus-visible,
+[data-field-style="pille"] .dp-trigger:focus-visible,
+[data-field-style="pille"] .combo-input:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+/* =====================================================================
+   DROPDOWN STYLES — the live, app-wide "vibe" for the floating menu (.pop)
+   shared by dropdown / combobox / menu. Scoped by [data-dd-style="X"] on
+   <html> (whole app) OR by a card wrapper carrying data-dd-style="X" (lab
+   preview shows its OWN variant). Varies surface / radius / shadow + the
+   item highlight. All token-driven.
+   ===================================================================== */
+
+/* standard — clear floating surface (restated for card previews at rest) */
+[data-dd-style="standard"] .pop {
+  background: var(--surface-3); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sm); box-shadow: var(--elev-pop); padding: var(--sp-1);
+}
+[data-dd-style="standard"] .pop-item { padding: 8px 9px; border-radius: var(--r-xs); }
+
+/* myk — softer surface + bigger radius, gentler shadow */
+[data-dd-style="myk"] .pop {
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  border-radius: var(--r); box-shadow: var(--elev-2); padding: var(--sp-2);
+}
+[data-dd-style="myk"] .pop-item { padding: 9px 10px; border-radius: var(--r-sm); }
+
+/* kompakt — tighter rows for dense menus */
+[data-dd-style="kompakt"] .pop {
+  background: var(--surface-3); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sm); box-shadow: var(--elev-pop); padding: 3px;
+}
+[data-dd-style="kompakt"] .pop-item { padding: 5px 8px; border-radius: var(--r-xs); }
+
+/* kant — stronger hairline, flatter (no soft shadow) */
+[data-dd-style="kant"] .pop {
+  background: var(--surface-1);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: var(--r-sm); box-shadow: var(--elev-1); padding: var(--sp-1);
+}
+[data-dd-style="kant"] .pop-item { padding: 8px 9px; border-radius: var(--r-xs); }
+
 /* icon-only button */
 .icon-btn {
   display: inline-grid; place-items: center;
@@ -1131,6 +1270,13 @@ textarea.field {
   color: var(--on-accent); background: var(--accent); border-radius: var(--r-pill); padding: 2px 7px;
 }
 .btn-style-sample { display: grid; place-items: center; min-height: 40px; }
+.btn-style-sample .field { pointer-events: none; }
+/* the Nedtrekk preview renders a real .pop inline (not floating) inside the card */
+.dd-style-sample { display: block; min-height: 40px; }
+.dd-style-mock {
+  position: static; width: 100%; max-height: none; z-index: auto;
+  pointer-events: none; animation: none; margin: 0;
+}
 .btn-style-meta { display: flex; flex-direction: column; gap: 2px; }
 .btn-style-name { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
 .btn-style-desc { font-size: var(--fs-xs); color: var(--muted); line-height: 1.3; }
