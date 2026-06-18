@@ -24,6 +24,7 @@ function saveData(data) {
     // Atomic-ish write: write to a temp file then rename, so a crash mid-write
     // can't corrupt the only copy of her data.
     const f = dataFile();
+    fs.mkdirSync(path.dirname(f), { recursive: true }); // ensure the dir exists
     const tmp = f + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
     fs.renameSync(tmp, f);
@@ -34,6 +35,7 @@ function saveData(data) {
 }
 
 let win;
+let flushing = false; // true while we wait for the renderer to persist on close
 
 function createWindow() {
   win = new BrowserWindow({
@@ -43,7 +45,11 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#f5f6f8',
     title: 'Oppfølging',
-    autoHideMenuBar: true, // keep a clean look; Alt reveals the menu
+    icon: path.join(__dirname, 'renderer', 'logo.png'),
+    // Frameless: we draw our own title bar (min/max/close) in the renderer so the
+    // controls merge into the app background — no black OS chrome. The window is
+    // still resizable (Electron keeps invisible resize handles).
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -52,6 +58,24 @@ function createWindow() {
     },
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // Keep the renderer's maximize/restore icon in sync with the real state.
+  const sendMaxState = () => {
+    if (win && !win.isDestroyed()) win.webContents.send('win:maximized', win.isMaximized());
+  };
+  win.on('maximize', sendMaxState);
+  win.on('unmaximize', sendMaxState);
+
+  // Flush-on-close: saves are debounced in the renderer, so closing right after
+  // a change could drop it. Hold the close, ask the renderer to persist now, and
+  // only then actually close. A short timeout guarantees we never hang shut.
+  win.on('close', (e) => {
+    if (flushing || !win || win.isDestroyed()) return;
+    e.preventDefault();
+    flushing = true;
+    win.webContents.send('app:flush');
+    setTimeout(() => { if (win && !win.isDestroyed()) win.destroy(); }, 1200);
+  });
 }
 
 // Minimal menu — mostly so Cmd/Ctrl+Q, copy/paste, and a "vis datafil" helper exist.
@@ -97,6 +121,17 @@ ipcMain.handle('data:load', () => loadData());
 ipcMain.handle('data:save', (_e, data) => saveData(data));
 ipcMain.handle('data:dataPath', () => dataFile());
 ipcMain.handle('data:reveal', () => shell.showItemInFolder(dataFile()));
+
+// --- IPC: custom window controls (frameless title bar) ---
+ipcMain.handle('win:minimize', () => { if (win) win.minimize(); });
+ipcMain.handle('win:maximizeToggle', () => {
+  if (!win) return;
+  if (win.isMaximized()) win.unmaximize(); else win.maximize();
+});
+ipcMain.handle('win:close', () => { if (win) win.close(); });
+ipcMain.handle('win:isMaximized', () => !!(win && win.isMaximized()));
+// renderer confirms its final save landed → finish closing
+ipcMain.on('app:flushed', () => { if (win && !win.isDestroyed()) win.destroy(); });
 
 ipcMain.handle('data:export', async (_e, data) => {
   const stamp = new Date().toISOString().slice(0, 10);

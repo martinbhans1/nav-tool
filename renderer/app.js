@@ -2,14 +2,20 @@
 // Contacts (initials only) are the shared entity linked across the month grid,
 // tasks, and referat reminders. DOM built with textContent (no innerHTML on
 // user data) → no injection risk.
+//
+// Design system: a single icon() helper (inline Lucide SVG, no runtime dep) +
+// native-free component factories (button/input/select/combobox/checkbox/radio/
+// toggle/segmented/slider/datepicker/menu/modal/tooltip/...). Every form control
+// shares --control-h so heights are pixel-identical. The "Designlab" view is the
+// component + token gallery.
 
 'use strict';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
+const MONTHS_FULL = ['Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Desember'];
+const DOW = ['Ma', 'Ti', 'On', 'To', 'Fr', 'Lø', 'Sø']; // week starts Monday
 const PRIO_LABEL = { low: 'Lav', normal: 'Normal', high: 'Høy' };
 const PRIO_RANK = { high: 0, normal: 1, low: 2 };
-const CHECK_SVG =
-  '<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const todayStr = () => {
@@ -25,26 +31,101 @@ function fmtDate(s) {
 }
 const isOverdue = (s) => !!s && s < todayStr();
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+// add n days to a 'YYYY-MM-DD' string (or to today if empty) → 'YYYY-MM-DD'
+function addDays(s, n) {
+  const d = s ? new Date(s + 'T00:00:00') : new Date();
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
-// ---------- theming ----------
+// =====================================================================
+// ICONS — inline Lucide SVG, stroke-width 1.75, sized by the --icon token.
+// Only the handful we actually use. Path data copied from lucide.dev (ISC).
+// =====================================================================
+const LUCIDE = {
+  'grid': '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+  'check-square': '<path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  'pen-line': '<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/>',
+  'notebook': '<path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M16 2v20"/>',
+  'settings': '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  'palette': '<path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>',
+  'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'chevron-left': '<path d="m15 18-6-6 6-6"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+  'check': '<path d="M20 6 9 17l-5-5"/>',
+  'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'trash': '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  'calendar': '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  'calendar-plus': '<path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M3 10h18"/><path d="M16 19h6"/><path d="M19 16v6"/>',
+  'download': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  'upload': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+  'folder': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  'flag': '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
+  'user': '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  'inbox': '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  'more-horizontal': '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  'info': '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'alert-triangle': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  'edit': '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
+};
+function icon(name) {
+  const p = LUCIDE[name];
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p || ''}</svg>`;
+}
+// fill any [data-icon] placeholders in static markup with the .ic wrapper SVG.
+function hydrateIcons(root = document) {
+  root.querySelectorAll('[data-icon]').forEach(el => {
+    if (el.dataset.iconDone) return;
+    el.classList.add('ic');
+    el.innerHTML = icon(el.dataset.icon);
+    el.dataset.iconDone = '1';
+  });
+}
+
+// small DOM helper
+function el(tag, cls, txt) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt != null) e.textContent = txt;
+  return e;
+}
+
+// ---------- theming data ----------
 const SHADOW_LIGHT = '0 1px 2px rgba(20,28,45,.04), 0 6px 20px rgba(20,28,45,.06)';
 const SHADOW_DARK = '0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.32)';
+// Heading-font stacks (system, offline). Themes pick one as their "vibe".
+const HEAD_SANS  = 'Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif';
+// elegant, "that-girl" editorial serif — humanist/calligraphic Windows faces
+// first (Palatino, Constantia), Georgia/Times as universal fallbacks.
+const HEAD_SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Constantia, Georgia, "Times New Roman", serif';
+//
+// Each theme is a *vibe bundle*: colours + a heading font (`head`), a default
+// body font key (`font`), a default radius and a default accent. Picking a theme
+// applies all of these; the customization controls (accent / font / size /
+// radius) can still override afterward. `lift` tunes the elevation ladder —
+// dark themes lift harder so the "emerging from dark" steps are unmistakable,
+// light themes lift gently so the ladder stays subtle.
 const THEMES = {
-  lys:      { name: 'Lys',      bg: '#f5f6f8', panel: '#ffffff', ink: '#1b2230', muted: '#6b7480', faint: '#9aa3af', line: '#e6e8ec', lineStrong: '#d8dbe1', accent: '#4f46e5', shadow: SHADOW_LIGHT },
-  rosa:     { name: 'Rosa',     bg: '#fdf4f7', panel: '#fffafc', ink: '#3b2530', muted: '#8a6b76', faint: '#bd9aa6', line: '#f4e2e9', lineStrong: '#ecd2dd', accent: '#db2777', shadow: '0 1px 2px rgba(80,20,45,.05), 0 6px 20px rgba(120,30,70,.08)' },
-  lavendel: { name: 'Lavendel', bg: '#f6f4fd', panel: '#fffdff', ink: '#2c2440', muted: '#756b8a', faint: '#a99fc0', line: '#e9e3f6', lineStrong: '#ddd4ef', accent: '#7c3aed', shadow: SHADOW_LIGHT },
-  sand:     { name: 'Sand',     bg: '#f7f4ee', panel: '#fffdf8', ink: '#2f2a22', muted: '#7d7361', faint: '#b3a995', line: '#ece5d8', lineStrong: '#e0d7c4', accent: '#b4530a', shadow: SHADOW_LIGHT },
-  mynte:    { name: 'Mynte',    bg: '#eef7f2', panel: '#fbfffd', ink: '#1c2a26', muted: '#5f7a70', faint: '#9bb5aa', line: '#dcebe4', lineStrong: '#cce0d6', accent: '#0d9488', shadow: SHADOW_LIGHT },
-  fersken:  { name: 'Fersken',  bg: '#fdf3ed', panel: '#fffbf8', ink: '#3a2820', muted: '#8a6f60', faint: '#c2a795', line: '#f5e3d8', lineStrong: '#eed5c6', accent: '#e0603a', shadow: SHADOW_LIGHT },
-  kontrast: { name: 'Kontrast', bg: '#ffffff', panel: '#ffffff', ink: '#000000', muted: '#2b2b2b', faint: '#555555', line: '#161616', lineStrong: '#000000', accent: '#1d4ed8', shadow: 'none' },
-  mork:     { name: 'Mørk',     bg: '#14161b', panel: '#1c1f26', ink: '#e7eaf0', muted: '#9aa3b2', faint: '#6b7280', line: '#2a2e37', lineStrong: '#363b46', accent: '#818cf8', shadow: SHADOW_DARK },
-  grafitt:  { name: 'Grafitt',  bg: '#1a1c1f', panel: '#232629', ink: '#e8eaed', muted: '#9aa0a8', faint: '#6a7078', line: '#2f3338', lineStrong: '#3b4046', accent: '#7aa2c9', shadow: SHADOW_DARK },
-  hav:      { name: 'Hav',      bg: '#0f1720', panel: '#16212c', ink: '#e2ecf2', muted: '#8aa0b0', faint: '#5f7180', line: '#22323f', lineStrong: '#2e4150', accent: '#2dd4bf', shadow: SHADOW_DARK },
+  lys:      { name: 'Lys',      bg: '#f5f6f8', panel: '#ffffff', ink: '#1b2230', muted: '#6b7480', faint: '#9aa3af', line: '#e6e8ec', lineStrong: '#d8dbe1', accent: '#4f46e5', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 12, lift: 4.5 },
+  rosa:     { name: 'Rosa',     bg: '#fdf4f7', panel: '#fffafc', ink: '#3b2530', muted: '#8a6b76', faint: '#bd9aa6', line: '#f4e2e9', lineStrong: '#ecd2dd', accent: '#db2777', shadow: '0 1px 2px rgba(80,20,45,.05), 0 6px 20px rgba(120,30,70,.08)', head: HEAD_SANS, font: 'system', radius: 14, lift: 4.5 },
+  lavendel: { name: 'Lavendel', bg: '#f6f4fd', panel: '#fffdff', ink: '#2c2440', muted: '#756b8a', faint: '#a99fc0', line: '#e9e3f6', lineStrong: '#ddd4ef', accent: '#7c3aed', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 13, lift: 4.5 },
+  sand:     { name: 'Sand',     bg: '#f7f4ee', panel: '#fffdf8', ink: '#2f2a22', muted: '#7d7361', faint: '#b3a995', line: '#ece5d8', lineStrong: '#e0d7c4', accent: '#b4530a', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 12, lift: 4.5 },
+  mynte:    { name: 'Mynte',    bg: '#eef7f2', panel: '#fbfffd', ink: '#1c2a26', muted: '#5f7a70', faint: '#9bb5aa', line: '#dcebe4', lineStrong: '#cce0d6', accent: '#0d9488', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 12, lift: 4.5 },
+  fersken:  { name: 'Fersken',  bg: '#fdf3ed', panel: '#fffbf8', ink: '#3a2820', muted: '#8a6f60', faint: '#c2a795', line: '#f5e3d8', lineStrong: '#eed5c6', accent: '#e0603a', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 14, lift: 4.5 },
+  estetisk: { name: 'Estetisk', bg: '#e7e1d4', panel: '#fcfbf7', ink: '#403930', muted: '#8a7d6c', faint: '#b3a692', line: '#e2d9c8', lineStrong: '#d0c4ad', accent: '#9d7a54', shadow: '0 1px 2px rgba(74,64,56,.05), 0 10px 30px rgba(120,100,80,.12)', head: HEAD_SERIF, font: 'system', radius: 18, lift: 5 },
+  kontrast: { name: 'Kontrast', bg: '#ffffff', panel: '#ffffff', ink: '#000000', muted: '#2b2b2b', faint: '#555555', line: '#161616', lineStrong: '#000000', accent: '#1d4ed8', shadow: 'none', head: HEAD_SANS, font: 'system', radius: 8, lift: 4 },
+  mork:     { name: 'Mørk',     bg: '#14161b', panel: '#1c1f26', ink: '#e7eaf0', muted: '#9aa3b2', faint: '#6b7280', line: '#2a2e37', lineStrong: '#363b46', accent: '#818cf8', shadow: SHADOW_DARK, head: HEAD_SANS, font: 'system', radius: 12, lift: 7 },
+  grafitt:  { name: 'Grafitt',  bg: '#1a1c1f', panel: '#232629', ink: '#e8eaed', muted: '#9aa0a8', faint: '#6a7078', line: '#2f3338', lineStrong: '#3b4046', accent: '#7aa2c9', shadow: SHADOW_DARK, head: HEAD_SANS, font: 'system', radius: 10, lift: 7 },
+  hav:      { name: 'Hav',      bg: '#0f1720', panel: '#16212c', ink: '#e2ecf2', muted: '#8aa0b0', faint: '#5f7180', line: '#22323f', lineStrong: '#2e4150', accent: '#2dd4bf', shadow: SHADOW_DARK, head: HEAD_SANS, font: 'system', radius: 12, lift: 7.5 },
 };
+// Themes whose accent is light enough to need dark text on filled controls.
+const DARK_ON_ACCENT = new Set(['hav']);
 const FONTS = [
-  { key: 'system',  label: 'System',   stack: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif' },
+  { key: 'system',  label: 'System',   stack: 'Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif' },
   { key: 'rounded', label: 'Avrundet', stack: 'ui-rounded, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif' },
-  { key: 'serif',   label: 'Serif',    stack: 'Georgia, "Times New Roman", serif' },
+  { key: 'serif',   label: 'Serif',    stack: '"Palatino Linotype", Palatino, "Book Antiqua", Constantia, Georgia, serif' },
   { key: 'verdana', label: 'Verdana',  stack: 'Verdana, Geneva, Tahoma, sans-serif' },
   { key: 'mono',    label: 'Mono',     stack: '"Cascadia Code", Consolas, "Courier New", ui-monospace, monospace' },
 ];
@@ -143,7 +224,7 @@ function resolveContact(raw) {
   if (!c) {
     c = { id: uid(), initials: v };
     state.contacts.push(c);
-    renderGrid(); renderContactsDatalist();
+    renderGrid();
   }
   return c.id;
 }
@@ -156,27 +237,461 @@ function addContact(raw) {
 function deleteContact(id) {
   const c = contactById(id);
   if (!c) return;
-  if (!confirm('Fjerne ' + c.initials + '? Kontakt-historikk slettes, og koblinger i gjøremål/referat fjernes.')) return;
-  state.contacts = state.contacts.filter(x => x.id !== id);
-  delete state.contacted[id];
-  state.tasks.forEach(t => { if (t.contactId === id) t.contactId = null; });
-  state.referater.forEach(r => { if (r.contactId === id) r.contactId = null; });
-  renderGrid(); renderContactsDatalist(); renderTasks(); renderReferat();
-  scheduleSave();
-}
-function renderContactsDatalist() {
-  const dl = document.getElementById('contactsList');
-  dl.textContent = '';
-  state.contacts.forEach(c => { const o = document.createElement('option'); o.value = c.initials; dl.appendChild(o); });
+  confirmModal({
+    title: 'Fjerne ' + c.initials + '?',
+    body: 'Kontakt-historikk slettes, og koblinger i gjøremål/referat fjernes.',
+    confirmLabel: 'Fjern', danger: true,
+    onConfirm: () => {
+      state.contacts = state.contacts.filter(x => x.id !== id);
+      delete state.contacted[id];
+      state.tasks.forEach(t => { if (t.contactId === id) t.contactId = null; });
+      state.referater.forEach(r => { if (r.contactId === id) r.contactId = null; });
+      renderGrid(); renderTasks(); renderReferat();
+      scheduleSave();
+    },
+  });
 }
 
-// ---------- month grid ----------
+// =====================================================================
+// COMPONENT FACTORIES — native-free, all sharing the sizing tokens.
+// =====================================================================
+
+// --- button: returns a <button>. opts: {label, variant, icon, onClick, sm,
+//     disabled, type, block, title} ---
+function button({ label = '', variant = 'secondary', icon: ic, onClick, sm = false,
+                  disabled = false, type = 'button', block = false, title } = {}) {
+  const b = document.createElement('button');
+  b.type = type;
+  b.className = 'btn ' + variant + (sm ? ' sm' : '') + (block ? ' block' : '');
+  if (ic) { const s = el('span', 'ic'); s.innerHTML = icon(ic); b.appendChild(s); }
+  if (label) b.appendChild(el('span', null, label));
+  if (disabled) b.disabled = true;
+  if (title) b.dataset.tip = title;
+  if (onClick) b.addEventListener('click', onClick);
+  return b;
+}
+
+// --- searchable combobox (contacts). Type initials, pick or keep what's typed.
+function buildCombo(host, { placeholder = 'Initialer', getItems }) {
+  host.classList.add('combo'); host.textContent = '';
+  const input = document.createElement('input');
+  input.className = 'field combo-input uppercase'; input.type = 'text'; input.maxLength = 6;
+  input.placeholder = placeholder; input.autocomplete = 'off';
+  const pop = el('div', 'pop hidden');
+  host.append(input, pop);
+  let filtered = [], active = -1;
+  const close = () => { pop.classList.add('hidden'); active = -1; };
+  const open = () => {
+    const q = input.value.trim().toUpperCase();
+    filtered = getItems().filter(i => !q || i.label.toUpperCase().includes(q));
+    pop.textContent = '';
+    if (!filtered.length) {
+      const e = el('div', 'pop-empty', q ? ('Opprett ny: ' + q) : 'Ingen kontakter ennå — skriv initialer');
+      if (q) e.classList.add('pop-create');
+      pop.appendChild(e);
+    } else {
+      filtered.forEach((it, i) => {
+        const item = el('div', 'pop-item' + (i === active ? ' active' : ''));
+        item.append(el('span', 'dot'), el('span', null, it.label));
+        item.addEventListener('mousedown', (ev) => { ev.preventDefault(); input.value = it.label; close(); });
+        pop.appendChild(item);
+      });
+    }
+    pop.classList.remove('hidden');
+  };
+  input.addEventListener('focus', open);
+  input.addEventListener('input', () => { input.value = input.value.toUpperCase(); active = -1; open(); });
+  input.addEventListener('keydown', (e) => {
+    if (pop.classList.contains('hidden')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(filtered.length - 1, active + 1); open(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(0, active - 1); open(); }
+    else if (e.key === 'Enter' && active >= 0 && filtered[active]) { e.preventDefault(); input.value = filtered[active].label; close(); }
+    else if (e.key === 'Escape') { close(); }
+  });
+  input.addEventListener('blur', () => setTimeout(close, 130));
+  return { get value() { return input.value.trim(); }, set value(v) { input.value = (v || '').toUpperCase(); }, clear() { input.value = ''; }, el: host };
+}
+
+// --- fixed-option dropdown (custom select). opts: {value, items:[{value,label}],
+//     placeholder, onChange} ---
+function buildDropdown(host, { value, items, placeholder = 'Velg…', onChange } = {}) {
+  host.classList.add('ddc'); host.textContent = '';
+  const trigger = el('button', 'dd-trigger'); trigger.type = 'button';
+  const lab = el('span', 'dd-val');
+  const caret = el('span', 'dd-caret'); caret.innerHTML = icon('chevron-down');
+  trigger.append(lab, caret);
+  const pop = el('div', 'pop hidden');
+  host.append(trigger, pop);
+  let cur = value;
+  const setLab = () => {
+    const it = items.find(i => i.value === cur);
+    lab.textContent = it ? it.label : placeholder;
+    trigger.classList.toggle('placeholder', !it);
+  };
+  const close = () => { pop.classList.add('hidden'); host.classList.remove('open'); };
+  const open = () => {
+    pop.textContent = '';
+    items.forEach(it => {
+      const item = el('div', 'pop-item' + (it.value === cur ? ' selected' : ''));
+      item.append(el('span', null, it.label));
+      const ck = el('span', 'pop-check'); ck.innerHTML = icon('check'); item.appendChild(ck);
+      item.addEventListener('mousedown', (ev) => { ev.preventDefault(); cur = it.value; setLab(); close(); if (onChange) onChange(cur); });
+      pop.appendChild(item);
+    });
+    pop.classList.remove('hidden'); host.classList.add('open');
+  };
+  trigger.addEventListener('click', () => pop.classList.contains('hidden') ? open() : close());
+  trigger.addEventListener('blur', () => setTimeout(close, 130));
+  setLab();
+  return { get value() { return cur; }, set value(v) { cur = v; setLab(); }, el: host };
+}
+
+// --- checkbox: span[role=checkbox]. opts: {checked, label, onChange, disabled} ---
+function buildCheckbox({ checked = false, label = '', onChange, disabled = false } = {}) {
+  const wrap = el('span', 'checkbox' + (checked ? ' on' : '') + (disabled ? ' disabled' : ''));
+  wrap.tabIndex = disabled ? -1 : 0; wrap.setAttribute('role', 'checkbox'); wrap.setAttribute('aria-checked', String(checked));
+  const box = el('span', 'box'); box.innerHTML = icon('check');
+  wrap.appendChild(box);
+  if (label) wrap.appendChild(el('span', 'cb-label', label));
+  let on = checked;
+  const set = (v) => { on = v; wrap.classList.toggle('on', on); wrap.setAttribute('aria-checked', String(on)); };
+  const toggle = () => { if (disabled) return; set(!on); if (onChange) onChange(on); };
+  wrap.addEventListener('click', toggle);
+  wrap.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); } });
+  return { el: wrap, get checked() { return on; }, set checked(v) { set(v); } };
+}
+
+// --- radio group: opts: {value, items:[{value,label}], onChange, name} ---
+function buildRadioGroup({ value, items, onChange } = {}) {
+  const wrap = el('div', 'lab-row');
+  let cur = value;
+  const radios = [];
+  items.forEach(it => {
+    const r = el('span', 'radio' + (it.value === cur ? ' on' : ''));
+    r.tabIndex = 0; r.setAttribute('role', 'radio'); r.setAttribute('aria-checked', String(it.value === cur));
+    r.append(el('span', 'dot-ring'), el('span', null, it.label));
+    const pick = () => { cur = it.value; radios.forEach(x => { x.r.classList.toggle('on', x.v === cur); x.r.setAttribute('aria-checked', String(x.v === cur)); }); if (onChange) onChange(cur); };
+    r.addEventListener('click', pick);
+    r.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); pick(); } });
+    radios.push({ r, v: it.value }); wrap.appendChild(r);
+  });
+  return { el: wrap, get value() { return cur; } };
+}
+
+// --- toggle switch: opts: {checked, label, onChange} ---
+function buildToggle({ checked = false, label = '', onChange } = {}) {
+  const wrap = el('span', 'toggle' + (checked ? ' on' : ''));
+  wrap.tabIndex = 0; wrap.setAttribute('role', 'switch'); wrap.setAttribute('aria-checked', String(checked));
+  wrap.appendChild(el('span', 'track'));
+  if (label) wrap.appendChild(el('span', null, label));
+  let on = checked;
+  const toggle = () => { on = !on; wrap.classList.toggle('on', on); wrap.setAttribute('aria-checked', String(on)); if (onChange) onChange(on); };
+  wrap.addEventListener('click', toggle);
+  wrap.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); } });
+  return { el: wrap, get checked() { return on; } };
+}
+
+// --- segmented control: opts: {value, items:[{value,label}], onChange} ---
+function buildSegmented({ value, items, onChange } = {}) {
+  const g = el('div', 'seg-group');
+  let cur = value;
+  const segs = [];
+  items.forEach(it => {
+    const b = el('button', 'seg' + (it.value === cur ? ' on' : '')); b.type = 'button'; b.textContent = it.label;
+    b.addEventListener('click', () => { cur = it.value; segs.forEach(s => s.b.classList.toggle('on', s.v === cur)); if (onChange) onChange(cur); });
+    segs.push({ b, v: it.value }); g.appendChild(b);
+  });
+  return { el: g, get value() { return cur; }, set value(v) { cur = v; segs.forEach(s => s.b.classList.toggle('on', s.v === cur)); } };
+}
+
+// --- slider: opts: {min, max, step, value, onInput, format} → accent-fill track.
+function buildSlider({ min = 0, max = 100, step = 1, value = 50, onInput, onChange, disabled = false } = {}) {
+  const wrap = el('div', 'slider' + (disabled ? ' disabled' : ''));
+  wrap.tabIndex = disabled ? -1 : 0; wrap.setAttribute('role', 'slider');
+  wrap.setAttribute('aria-valuemin', String(min)); wrap.setAttribute('aria-valuemax', String(max));
+  const track = el('div', 'slider-track');
+  const fill = el('div', 'slider-fill');
+  const thumb = el('div', 'slider-thumb');
+  track.append(fill, thumb); wrap.appendChild(track);
+  let val = clamp(value, min, max);
+  const paint = () => {
+    const pct = (val - min) / (max - min) * 100;
+    fill.style.width = pct + '%';
+    thumb.style.left = pct + '%';
+    wrap.setAttribute('aria-valuenow', String(val));
+  };
+  const setFromClientX = (clientX) => {
+    const rect = track.getBoundingClientRect();
+    const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
+    let v = min + ratio * (max - min);
+    v = Math.round(v / step) * step;
+    v = clamp(v, min, max);
+    if (v !== val) { val = v; paint(); if (onInput) onInput(val); } else { paint(); }
+  };
+  let dragging = false;
+  const onMove = (e) => { if (dragging) setFromClientX(e.clientX); };
+  const onUp = () => { dragging = false; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); if (onChange) onChange(val); };
+  wrap.addEventListener('pointerdown', (e) => { if (disabled) return; dragging = true; setFromClientX(e.clientX); window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp); });
+  wrap.addEventListener('keydown', (e) => {
+    if (disabled) return;
+    let v = val;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') v -= step;
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') v += step;
+    else if (e.key === 'Home') v = min;
+    else if (e.key === 'End') v = max;
+    else return;
+    e.preventDefault(); v = clamp(v, min, max); if (v !== val) { val = v; paint(); if (onInput) onInput(val); }
+  });
+  wrap.addEventListener('keyup', () => { if (!disabled && onChange) onChange(val); });
+  paint();
+  return { el: wrap, get value() { return val; }, set value(v) { val = clamp(v, min, max); paint(); } };
+}
+
+// --- custom DATE PICKER (replaces <input type=date>). Value is 'YYYY-MM-DD' or ''.
+function buildDatePicker(host, { value = '', placeholder = 'Velg dato', onChange } = {}) {
+  host.classList.add('datepicker'); host.textContent = '';
+  const trigger = el('button', 'dp-trigger'); trigger.type = 'button';
+  const ic = el('span', 'dp-ic'); ic.innerHTML = icon('calendar');
+  const valEl = el('span', 'dp-val');
+  trigger.append(ic, valEl);
+  const cal = el('div', 'dp-cal hidden');
+  host.append(trigger, cal);
+
+  let cur = value;                      // selected 'YYYY-MM-DD'
+  let viewY, viewM;                     // calendar's visible month
+  const initView = () => {
+    const base = cur ? new Date(cur + 'T00:00:00') : new Date();
+    viewY = base.getFullYear(); viewM = base.getMonth();
+  };
+  const setLabel = () => {
+    if (cur) { valEl.textContent = fmtDate(cur); trigger.classList.add('has-value'); trigger.classList.remove('placeholder'); }
+    else { valEl.textContent = placeholder; trigger.classList.remove('has-value'); trigger.classList.add('placeholder'); }
+  };
+  const ymd = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const close = () => cal.classList.add('hidden');
+  const open = () => { initView(); renderCal(); cal.classList.remove('hidden'); };
+
+  function renderCal() {
+    cal.textContent = '';
+    const head = el('div', 'dp-head');
+    const title = el('div', 'dp-title', MONTHS_FULL[viewM] + ' ' + viewY);
+    const nav = el('div', 'dp-nav');
+    const prev = el('button', null); prev.type = 'button'; prev.innerHTML = icon('chevron-left'); prev.setAttribute('aria-label', 'Forrige måned');
+    const next = el('button', null); next.type = 'button'; next.innerHTML = icon('chevron-right'); next.setAttribute('aria-label', 'Neste måned');
+    prev.addEventListener('click', (e) => { e.stopPropagation(); viewM--; if (viewM < 0) { viewM = 11; viewY--; } renderCal(); });
+    next.addEventListener('click', (e) => { e.stopPropagation(); viewM++; if (viewM > 11) { viewM = 0; viewY++; } renderCal(); });
+    nav.append(prev, next); head.append(title, nav); cal.appendChild(head);
+
+    const dow = el('div', 'dp-dow');
+    DOW.forEach(d => dow.appendChild(el('span', null, d)));
+    cal.appendChild(dow);
+
+    const grid = el('div', 'dp-grid');
+    const first = new Date(viewY, viewM, 1);
+    let lead = (first.getDay() + 6) % 7; // make Monday=0
+    const daysInMonth = new Date(viewY, viewM + 1, 0).getDate();
+    const prevDays = new Date(viewY, viewM, 0).getDate();
+    const today = todayStr();
+    // leading days from previous month
+    for (let i = lead - 1; i >= 0; i--) {
+      const d = prevDays - i;
+      const b = el('button', 'dp-day muted'); b.type = 'button'; b.textContent = String(d);
+      b.addEventListener('click', (e) => { e.stopPropagation(); viewM--; if (viewM < 0) { viewM = 11; viewY--; } pick(ymd(viewY, viewM, d)); });
+      grid.appendChild(b);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = ymd(viewY, viewM, d);
+      const b = el('button', 'dp-day' + (ds === cur ? ' selected' : '') + (ds === today ? ' today' : '')); b.type = 'button'; b.textContent = String(d);
+      b.addEventListener('click', (e) => { e.stopPropagation(); pick(ds); });
+      grid.appendChild(b);
+    }
+    const total = lead + daysInMonth;
+    const trail = (7 - (total % 7)) % 7;
+    for (let d = 1; d <= trail; d++) {
+      const b = el('button', 'dp-day muted'); b.type = 'button'; b.textContent = String(d);
+      b.addEventListener('click', (e) => { e.stopPropagation(); viewM++; if (viewM > 11) { viewM = 0; viewY++; } pick(ymd(viewY, viewM, d)); });
+      grid.appendChild(b);
+    }
+    cal.appendChild(grid);
+
+    const foot = el('div', 'dp-foot');
+    const todayBtn = el('button', null, 'I dag'); todayBtn.type = 'button';
+    todayBtn.addEventListener('click', (e) => { e.stopPropagation(); pick(today); });
+    const clearBtn = el('button', 'dp-clearbtn', 'Fjern'); clearBtn.type = 'button';
+    clearBtn.addEventListener('click', (e) => { e.stopPropagation(); pick(''); });
+    foot.append(todayBtn, clearBtn); cal.appendChild(foot);
+  }
+
+  function pick(v) { cur = v; setLabel(); close(); if (onChange) onChange(cur); }
+
+  trigger.addEventListener('click', () => {
+    cal.classList.contains('hidden') ? open() : close();
+  });
+  // outside click closes
+  document.addEventListener('mousedown', (e) => { if (!host.contains(e.target)) close(); });
+  setLabel();
+  return { el: host, get value() { return cur; }, set value(v) { cur = v || ''; setLabel(); }, clear() { cur = ''; setLabel(); } };
+}
+
+// --- colour well (replaces native <input type=color>) — opens a hidden native
+//     picker is NOT allowed; we build a small swatch grid + free-pick via a
+//     lightweight hex prompt modal. Keeps it native-free.
+function buildColorWell(host, { value = '#4f46e5', onLive, onDefault, onClose } = {}) {
+  // renderSettings() rebuilds this well on every settings change, but the host
+  // (#accentColor) is a persistent element — re-adding listeners each time would
+  // stack them, so a single click would open one picker modal per past render.
+  // Replace the node with a shallow clone to drop any previously-bound handlers.
+  if (host.parentNode) { const fresh = host.cloneNode(false); host.parentNode.replaceChild(fresh, host); host = fresh; }
+  host.classList.add('color-well'); host.textContent = '';
+  host.setAttribute('role', 'button'); host.tabIndex = 0; host.dataset.tip = 'Velg aksentfarge';
+  const sw = el('span', 'cw-swatch'); host.appendChild(sw);
+  let cur = value;
+  const paint = () => { sw.style.background = cur; };
+  const openPicker = () => {
+    colorPickerModal({
+      startHex: cur,
+      onLive: (hex) => { cur = hex; paint(); if (onLive) onLive(hex); },
+      onDefault,
+      onClose,
+    });
+  };
+  host.addEventListener('click', openPicker);
+  host.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(); } });
+  paint();
+  return { el: host, get value() { return cur; }, set value(v) { cur = v; paint(); } };
+}
+
+// --- modal / dialog ---
+const modalMount = document.getElementById('modalMount');
+function openModal({ title, bodyNode, footNode, width }) {
+  const overlay = el('div', 'modal-overlay');
+  const modal = el('div', 'modal');
+  if (width) modal.style.width = width + 'px';
+  const head = el('div', 'modal-head'); head.appendChild(el('div', 'modal-title', title || ''));
+  const body = el('div', 'modal-body'); if (bodyNode) body.appendChild(bodyNode);
+  modal.append(head, body);
+  if (footNode) { const foot = el('div', 'modal-foot'); foot.appendChild(footNode); modal.appendChild(foot); }
+  overlay.appendChild(modal);
+  const close = () => overlay.remove();
+  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
+  modalMount.appendChild(overlay);
+  return { overlay, close };
+}
+function confirmModal({ title, body, confirmLabel = 'OK', cancelLabel = 'Avbryt', danger = false, onConfirm }) {
+  const bodyNode = el('div', null, body);
+  const foot = el('div', 'lab-row');
+  const cancel = button({ label: cancelLabel, variant: 'ghost' });
+  const ok = button({ label: confirmLabel, variant: danger ? 'danger' : 'primary' });
+  foot.append(cancel, ok);
+  const m = openModal({ title, bodyNode, footNode: foot });
+  cancel.addEventListener('click', m.close);
+  ok.addEventListener('click', () => { m.close(); if (onConfirm) onConfirm(); });
+}
+// --- colour maths (hex ⇄ rgb ⇄ hsv) for the interactive picker ---
+function hexToRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rgbToHex(r, g, b) { const h = (x) => Math.round(clamp(x, 0, 255)).toString(16).padStart(2, '0'); return '#' + h(r) + h(g) + h(b); }
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
+  return [h, mx ? d / mx : 0, mx];
+}
+function hsvToHex(h, s, v) {
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+  return rgbToHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
+}
+// shared pointer-drag helper (also used by the picker's SV area + hue bar)
+function dragify(node, onMove) {
+  const move = (e) => { e.preventDefault(); onMove(e); };
+  const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  node.addEventListener('pointerdown', (e) => { onMove(e); window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); });
+}
+
+// Interactive accent picker: saturation/value square + hue bar + hex + presets,
+// with LIVE preview as you drag. onLive(hex) fires continuously; onDefault resets
+// to the theme default; onClose commits (re-render + save). Native-free, offline.
+function colorPickerModal({ startHex = '#4f46e5', onLive, onDefault, onClose }) {
+  const safe = /^#[0-9a-fA-F]{6}$/.test(startHex) ? startHex : '#4f46e5';
+  let [h, s, v] = rgbToHsv(...hexToRgb(safe));
+
+  const body = el('div', 'cp');
+  const area = el('div', 'cp-area'); const areaThumb = el('div', 'cp-thumb'); area.appendChild(areaThumb);
+  const hue = el('div', 'cp-hue'); const hueThumb = el('div', 'cp-thumb cp-hue-thumb'); hue.appendChild(hueThumb);
+  const row = el('div', 'cp-row');
+  const preview = el('div', 'cp-preview');
+  const hexInput = document.createElement('input');
+  hexInput.className = 'field'; hexInput.maxLength = 7; hexInput.spellcheck = false; hexInput.setAttribute('aria-label', 'Hex-kode');
+  row.append(preview, hexInput);
+  const presets = el('div', 'swatches cp-presets');
+  ACCENTS.forEach(hex => { const b = el('button', 'swatch'); b.type = 'button'; b.style.background = hex; b.dataset.tip = hex; b.addEventListener('click', () => { [h, s, v] = rgbToHsv(...hexToRgb(hex)); live(); }); presets.appendChild(b); });
+  body.append(area, hue, row, presets);
+
+  const render = () => {
+    area.style.background = `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent), hsl(${h} 100% 50%)`;
+    areaThumb.style.left = (s * 100) + '%'; areaThumb.style.top = ((1 - v) * 100) + '%';
+    hueThumb.style.left = (h / 360 * 100) + '%';
+    const hex = hsvToHex(h, s, v);
+    preview.style.background = hex;
+    if (document.activeElement !== hexInput) hexInput.value = hex;
+  };
+  const live = () => { render(); if (onLive) onLive(hsvToHex(h, s, v)); };
+
+  dragify(area, (e) => { const r = area.getBoundingClientRect(); s = clamp((e.clientX - r.left) / r.width, 0, 1); v = clamp(1 - (e.clientY - r.top) / r.height, 0, 1); live(); });
+  dragify(hue, (e) => { const r = hue.getBoundingClientRect(); h = clamp((e.clientX - r.left) / r.width, 0, 1) * 359.99; live(); });
+  hexInput.addEventListener('input', () => { const val = hexInput.value.trim(); if (/^#[0-9a-fA-F]{6}$/.test(val)) { [h, s, v] = rgbToHsv(...hexToRgb(val)); render(); if (onLive) onLive(val); } });
+
+  const foot = el('div', 'lab-row');
+  const def = button({ label: 'Standard', variant: 'ghost' });
+  const done = button({ label: 'Ferdig', variant: 'primary' });
+  foot.append(def, done);
+  const m = openModal({ title: 'Aksentfarge', bodyNode: body, footNode: foot, width: 312 });
+  def.addEventListener('click', () => { m.close(); if (onDefault) onDefault(); if (onClose) onClose(); });
+  done.addEventListener('click', () => { m.close(); if (onClose) onClose(); });
+  render();
+}
+
+// --- dropdown menu (popover with action items) ---
+function buildMenu(anchorBtn, items) {
+  const pop = el('div', 'pop menu'); pop.style.minWidth = '180px';
+  items.forEach(it => {
+    if (it.sep) { pop.appendChild(el('div', 'menu-sep')); return; }
+    const b = el('button', 'menu-item' + (it.danger ? ' danger' : '')); b.type = 'button';
+    if (it.icon) { const s = el('span', 'ic'); s.innerHTML = icon(it.icon); b.appendChild(s); }
+    b.appendChild(el('span', null, it.label));
+    b.addEventListener('click', () => { close(); if (it.onClick) it.onClick(); });
+    pop.appendChild(b);
+  });
+  const host = anchorBtn.parentElement;
+  host.style.position = host.style.position || 'relative';
+  const close = () => { pop.remove(); document.removeEventListener('mousedown', outside); };
+  const outside = (e) => { if (!pop.contains(e.target) && e.target !== anchorBtn) close(); };
+  host.appendChild(pop);
+  setTimeout(() => document.addEventListener('mousedown', outside), 0);
+  return { close };
+}
+
+// custom tooltip is CSS-only via [data-tip]; expose a setter for convenience
+function tip(node, text) { if (text) node.dataset.tip = text; return node; }
+
+// Instances (created in bind()).
+let taskContactCombo, taskPriorityDd, refContactCombo, taskDuePicker, refDatePicker;
+
+// =====================================================================
+// MONTH GRID
+// =====================================================================
 function cellGet(pid, year, m) { const a = state.contacted[pid] && state.contacted[pid][year]; return !!(a && a[m]); }
 function cellSet(pid, year, m, v) {
   if (!state.contacted[pid]) state.contacted[pid] = {};
   if (!Array.isArray(state.contacted[pid][year])) state.contacted[pid][year] = new Array(12).fill(false);
   state.contacted[pid][year][m] = v;
 }
+// checkmark centered within the 24×24 viewBox (bbox x:5–19 → cx 12, y:7–17 → cy 12)
+const CHECK_SVG = '<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12.5 10 17 19 7"/></svg>';
 function renderGrid() {
   const head = document.getElementById('gridHead'), body = document.getElementById('gridBody'), foot = document.getElementById('gridFoot');
   const empty = document.getElementById('gridEmpty'), table = document.getElementById('grid');
@@ -184,26 +699,32 @@ function renderGrid() {
   if (!state.contacts.length) { empty.classList.remove('hidden'); table.classList.add('hidden'); return; }
   empty.classList.add('hidden'); table.classList.remove('hidden');
 
-  const htr = document.createElement('tr');
-  const hn = document.createElement('th'); hn.className = 'name-col'; hn.textContent = 'Person'; htr.appendChild(hn);
-  MONTHS.forEach(m => { const th = document.createElement('th'); th.textContent = m; htr.appendChild(th); });
+  const htr = el('tr');
+  const hn = el('th', 'name-col', 'Person'); htr.appendChild(hn);
+  MONTHS.forEach((label, m) => {
+    const th = el('th', 'month-col', label);
+    const allOn = state.contacts.every(p => cellGet(p.id, state.year, m));
+    th.dataset.tip = (allOn ? 'Fjern alle i ' : 'Merk alle i ') + MONTHS_FULL[m];
+    th.addEventListener('click', () => toggleMonthAll(m));
+    htr.appendChild(th);
+  });
   head.appendChild(htr);
 
   state.contacts.forEach(p => {
-    const tr = document.createElement('tr');
-    const nameTd = document.createElement('td'); nameTd.className = 'name-col';
-    const wrap = document.createElement('div'); wrap.className = 'person-cell';
-    const ini = document.createElement('span'); ini.className = 'person-initials'; ini.textContent = p.initials;
-    const del = document.createElement('button'); del.className = 'row-del'; del.textContent = '×'; del.title = 'Fjern person';
+    const tr = el('tr');
+    const nameTd = el('td', 'name-col');
+    const wrap = el('div', 'person-cell');
+    const ini = el('span', 'person-initials', p.initials);
+    const del = el('button', 'row-del'); del.innerHTML = icon('x'); del.setAttribute('aria-label', 'Fjern ' + p.initials);
     del.addEventListener('click', () => deleteContact(p.id));
     wrap.append(ini, del); nameTd.appendChild(wrap); tr.appendChild(nameTd);
 
     for (let m = 0; m < 12; m++) {
-      const td = document.createElement('td');
-      const btn = document.createElement('button');
+      const td = el('td');
+      const btn = el('button');
       const on = cellGet(p.id, state.year, m);
       btn.className = 'cell-btn' + (on ? ' on' : '');
-      btn.title = (on ? 'Kontaktet' : 'Ikke kontaktet') + ' — ' + MONTHS[m];
+      btn.setAttribute('aria-label', MONTHS[m] + ': ' + (on ? 'kontaktet' : 'ikke kontaktet'));
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
       if (on) btn.innerHTML = CHECK_SVG;
       btn.addEventListener('click', () => {
@@ -211,7 +732,7 @@ function renderGrid() {
         cellSet(p.id, state.year, m, next);
         btn.classList.toggle('on', next);
         btn.setAttribute('aria-pressed', next ? 'true' : 'false');
-        btn.title = (next ? 'Kontaktet' : 'Ikke kontaktet') + ' — ' + MONTHS[m];
+        btn.setAttribute('aria-label', MONTHS[m] + ': ' + (next ? 'kontaktet' : 'ikke kontaktet'));
         btn.innerHTML = next ? CHECK_SVG : '';
         renderFoot(); scheduleSave();
       });
@@ -221,52 +742,116 @@ function renderGrid() {
   });
   renderFoot();
 }
+// Bulk-mark a whole month for everyone. An EMPTY column just fills (no friction
+// — that's the common initial-setup case). If the column already has anything in
+// it, confirm first so an accidental click can't wipe/overwrite a column.
+function toggleMonthAll(m) {
+  if (!state.contacts.length) return;
+  const apply = (next) => { state.contacts.forEach(p => cellSet(p.id, state.year, m, next)); renderGrid(); scheduleSave(); };
+  const anyOn = state.contacts.some(p => cellGet(p.id, state.year, m));
+  if (!anyOn) { apply(true); return; }
+  const allOn = state.contacts.every(p => cellGet(p.id, state.year, m));
+  const next = !allOn; // fill the rest, or (if already all on) clear
+  confirmModal({
+    title: MONTHS_FULL[m] + ' ' + state.year,
+    body: next
+      ? ('Marker alle som kontaktet i ' + MONTHS_FULL[m] + '? Dette overskriver det som allerede er registrert i kolonnen.')
+      : ('Fjerne kontaktmarkering for alle i ' + MONTHS_FULL[m] + '? Dette kan ikke angres.'),
+    confirmLabel: next ? 'Marker alle' : 'Fjern alle',
+    danger: !next,
+    onConfirm: () => apply(next),
+  });
+}
 function renderFoot() {
   const foot = document.getElementById('gridFoot'); foot.textContent = '';
   const total = state.contacts.length;
-  const tr = document.createElement('tr');
-  const lbl = document.createElement('td'); lbl.className = 'name-col'; lbl.textContent = 'Kontaktet'; tr.appendChild(lbl);
+  const tr = el('tr');
+  tr.appendChild(el('td', 'name-col', 'Kontaktet'));
   for (let m = 0; m < 12; m++) {
-    const td = document.createElement('td');
+    const td = el('td');
     const n = state.contacts.reduce((a, p) => a + (cellGet(p.id, state.year, m) ? 1 : 0), 0);
     const pv = total ? Math.round((n / total) * 100) : 0;
-    const pct = document.createElement('div'); pct.className = 'pct' + (n === 0 ? ' zero' : ''); pct.textContent = pv + '%';
-    const sub = document.createElement('div'); sub.className = 'pct-sub'; sub.textContent = n + '/' + total;
-    const bar = document.createElement('div'); bar.className = 'pct-bar'; const fill = document.createElement('span'); fill.style.width = pv + '%'; bar.appendChild(fill);
+    const pct = el('div', 'pct' + (n === 0 ? ' zero' : ''), pv + '%');
+    const sub = el('div', 'pct-sub', n + '/' + total);
+    const bar = el('div', 'pct-bar'); const fill = el('span'); fill.style.width = pv + '%'; bar.appendChild(fill);
     td.append(pct, sub, bar); tr.appendChild(td);
   }
   foot.appendChild(tr);
 }
 
-// ---------- shared chip/meta builders ----------
+// =====================================================================
+// shared chip / meta builders
+// =====================================================================
 function personChip(contactId) {
   const who = initialsFor(contactId);
   if (!who) return null;
-  const c = document.createElement('span'); c.className = 'chip person'; c.textContent = who; return c;
+  const c = el('span', 'chip person');
+  const i = el('span', 'ic'); i.innerHTML = icon('user'); i.querySelector('svg').setAttribute('stroke-width', '2');
+  c.append(i, el('span', null, who));
+  return c;
 }
 function dueChip(due) {
   if (!due) return null;
-  const c = document.createElement('span'); c.className = 'chip due' + (isOverdue(due) ? ' overdue' : '');
-  c.textContent = (isOverdue(due) ? 'Forfalt · ' : '') + fmtDate(due); return c;
+  const c = el('span', 'chip due' + (isOverdue(due) ? ' overdue' : ''));
+  c.textContent = (isOverdue(due) ? 'Forfalt · ' : '') + fmtDate(due);
+  return c;
 }
 
-// ---------- tasks ----------
+// =====================================================================
+// item enter/leave animation (tasks + referater)
+// =====================================================================
+// id of an item that should play its "appear" animation on the next render
+// (a freshly-added item, or one that just moved between the active/done lists).
+let pendingEnterId = null;
+// Collapse + fade a row out, THEN run `done` (which re-renders). Measuring the
+// height first lets max-height animate to 0 for a smooth collapse.
+function animateOut(row, done) {
+  let fired = false;
+  const finish = () => { if (fired) return; fired = true; done(); };
+  row.style.maxHeight = row.offsetHeight + 'px';
+  row.classList.add('leaving');
+  requestAnimationFrame(() => {
+    row.style.maxHeight = '0px';
+    row.style.opacity = '0';
+    row.style.marginTop = '0px';
+    row.style.paddingTop = '0px';
+    row.style.paddingBottom = '0px';
+  });
+  row.addEventListener('transitionend', (e) => { if (e.propertyName === 'max-height') finish(); }, { once: true });
+  setTimeout(finish, 380); // fallback if transitionend never fires
+}
+
+// =====================================================================
+// TASKS
+// =====================================================================
 function taskEl(t) {
-  const row = document.createElement('div');
-  row.className = 'item prio-' + t.priority + (t.done ? ' is-done' : '');
-  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = t.done;
-  cb.addEventListener('change', () => { t.done = cb.checked; t.doneAt = t.done ? Date.now() : null; renderTasks(); scheduleSave(); });
-  const main = document.createElement('div'); main.className = 'item-main';
-  const title = document.createElement('div'); title.className = 'item-title'; title.textContent = t.title; main.appendChild(title);
-  if (t.note) { const n = document.createElement('div'); n.className = 'item-note'; n.textContent = t.note; main.appendChild(n); }
-  const meta = document.createElement('div'); meta.className = 'item-meta';
+  const row = el('div', 'item prio-' + t.priority + (t.done ? ' is-done' : '') + (t.id === pendingEnterId ? ' entering' : ''));
+  const cb = buildCheckbox({ checked: t.done, onChange: (v) => {
+    t.done = v; t.doneAt = t.done ? Date.now() : null;
+    pendingEnterId = t.id;            // play "appear" in the list it moves to
+    scheduleSave();
+    animateOut(row, renderTasks);     // collapse out of the current list first
+  } });
+  cb.el.setAttribute('aria-label', 'Marker som fullført');
+  const main = el('div', 'item-main');
+  main.appendChild(el('div', 'item-title', t.title));
+  if (t.note) main.appendChild(el('div', 'item-note', t.note));
+  const meta = el('div', 'item-meta');
   const dc = dueChip(t.due); if (dc) meta.appendChild(dc);
-  if (t.priority !== 'normal') { const pc = document.createElement('span'); pc.className = 'chip prio-' + t.priority; pc.textContent = PRIO_LABEL[t.priority]; meta.appendChild(pc); }
+  if (t.priority !== 'normal') { const pc = el('span', 'chip prio-' + t.priority, PRIO_LABEL[t.priority]); meta.appendChild(pc); }
   const pc2 = personChip(t.contactId); if (pc2) meta.appendChild(pc2);
   if (meta.children.length) main.appendChild(meta);
-  const del = document.createElement('button'); del.className = 'item-del'; del.textContent = '×'; del.title = 'Slett';
-  del.addEventListener('click', () => { state.tasks = state.tasks.filter(x => x.id !== t.id); renderTasks(); scheduleSave(); });
-  row.append(cb, main, del);
+  const acts = el('div', 'item-acts');
+  if (!t.done) {
+    const bump = el('button', 'item-act'); bump.innerHTML = icon('calendar-plus');
+    bump.setAttribute('aria-label', 'Utsett til neste dag'); bump.dataset.tip = 'Utsett én dag';
+    bump.addEventListener('click', () => { t.due = addDays(t.due, 1); renderTasks(); scheduleSave(); });
+    acts.appendChild(bump);
+  }
+  const del = el('button', 'item-del'); del.innerHTML = icon('trash'); del.setAttribute('aria-label', 'Slett');
+  del.addEventListener('click', () => animateOut(row, () => { state.tasks = state.tasks.filter(x => x.id !== t.id); renderTasks(); scheduleSave(); }));
+  acts.appendChild(del);
+  row.append(cb.el, main, acts);
   return row;
 }
 function renderTasks() {
@@ -278,29 +863,36 @@ function renderTasks() {
     return PRIO_RANK[a.priority] - PRIO_RANK[b.priority]; // then by priority
   });
   const fin = state.tasks.filter(t => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
-  if (!act.length) { const e = document.createElement('div'); e.className = 'list-empty'; e.textContent = 'Ingen aktive gjøremål.'; active.appendChild(e); }
+  if (!act.length) active.appendChild(el('div', 'list-empty', 'Ingen aktive gjøremål.'));
   else act.forEach(t => active.appendChild(taskEl(t)));
   fin.forEach(t => done.appendChild(taskEl(t)));
   document.getElementById('taskDoneCount').textContent = String(fin.length);
   renderBadges();
+  pendingEnterId = null; // consumed by whichever row just rendered with .entering
 }
 
-// ---------- referat reminders ----------
+// =====================================================================
+// REFERAT reminders
+// =====================================================================
 function referatEl(r) {
-  const row = document.createElement('div');
-  row.className = 'item ref' + (r.done ? ' is-done' : '');
-  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = r.done; cb.title = 'Marker som skrevet';
-  cb.addEventListener('change', () => { r.done = cb.checked; r.doneAt = r.done ? Date.now() : null; renderReferat(); scheduleSave(); });
-  const main = document.createElement('div'); main.className = 'item-main';
-  const title = document.createElement('div'); title.className = 'item-title'; title.textContent = r.title; main.appendChild(title);
-  if (r.note) { const n = document.createElement('div'); n.className = 'item-note'; n.textContent = r.note; main.appendChild(n); }
-  const meta = document.createElement('div'); meta.className = 'item-meta';
-  if (r.date) { const dc = document.createElement('span'); dc.className = 'chip due'; dc.textContent = fmtDate(r.date); meta.appendChild(dc); }
+  const row = el('div', 'item ref' + (r.done ? ' is-done' : '') + (r.id === pendingEnterId ? ' entering' : ''));
+  const cb = buildCheckbox({ checked: r.done, onChange: (v) => {
+    r.done = v; r.doneAt = r.done ? Date.now() : null;
+    pendingEnterId = r.id;
+    scheduleSave();
+    animateOut(row, renderReferat);
+  } });
+  cb.el.setAttribute('aria-label', 'Marker som skrevet');
+  const main = el('div', 'item-main');
+  main.appendChild(el('div', 'item-title', r.title));
+  if (r.note) main.appendChild(el('div', 'item-note', r.note));
+  const meta = el('div', 'item-meta');
+  if (r.date) { const dc = el('span', 'chip due', fmtDate(r.date)); meta.appendChild(dc); }
   const pc = personChip(r.contactId); if (pc) meta.appendChild(pc);
   if (meta.children.length) main.appendChild(meta);
-  const del = document.createElement('button'); del.className = 'item-del'; del.textContent = '×'; del.title = 'Slett';
-  del.addEventListener('click', () => { state.referater = state.referater.filter(x => x.id !== r.id); renderReferat(); scheduleSave(); });
-  row.append(cb, main, del);
+  const del = el('button', 'item-del'); del.innerHTML = icon('trash'); del.setAttribute('aria-label', 'Slett');
+  del.addEventListener('click', () => animateOut(row, () => { state.referater = state.referater.filter(x => x.id !== r.id); renderReferat(); scheduleSave(); }));
+  row.append(cb.el, main, del);
   return row;
 }
 function renderReferat() {
@@ -312,14 +904,17 @@ function renderReferat() {
     return (b.createdAt || 0) - (a.createdAt || 0);
   });
   const fin = state.referater.filter(r => r.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
-  if (!act.length) { const e = document.createElement('div'); e.className = 'list-empty'; e.textContent = 'Ingen påminnelser.'; active.appendChild(e); }
+  if (!act.length) active.appendChild(el('div', 'list-empty', 'Ingen påminnelser.'));
   else act.forEach(r => active.appendChild(referatEl(r)));
   fin.forEach(r => done.appendChild(referatEl(r)));
   document.getElementById('refDoneCount').textContent = String(fin.length);
   renderBadges();
+  pendingEnterId = null;
 }
 
-// ---------- nav ----------
+// =====================================================================
+// nav / badges / year
+// =====================================================================
 function renderBadges() {
   const t = state.tasks.filter(x => !x.done).length;
   const r = state.referater.filter(x => !x.done).length;
@@ -330,16 +925,27 @@ function setView(v) {
   state.view = v;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.nav === v));
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.dataset.view === v));
+  if (v === 'designlab' && !labBuilt) renderDesignLab();
   scheduleSave();
 }
-
-// ---------- year ----------
 function renderYear() { document.getElementById('yearLabel').textContent = String(state.year); }
 function setYear(delta) { state.year += delta; renderYear(); renderGrid(); scheduleSave(); }
 
-// ---------- wiring ----------
+// =====================================================================
+// wiring
+// =====================================================================
 function bind() {
   document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => setView(n.dataset.nav)));
+
+  const contactItems = () => state.contacts.map(c => ({ value: c.id, label: c.initials }));
+  taskContactCombo = buildCombo(document.getElementById('taskContactCombo'), { getItems: contactItems });
+  refContactCombo = buildCombo(document.getElementById('refContactCombo'), { getItems: contactItems });
+  taskPriorityDd = buildDropdown(document.getElementById('taskPriorityDd'), {
+    value: 'normal',
+    items: [{ value: 'low', label: 'Lav' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'Høy' }],
+  });
+  taskDuePicker = buildDatePicker(document.getElementById('taskDue'), { value: todayStr(), placeholder: 'Velg dato' });
+  refDatePicker = buildDatePicker(document.getElementById('refDate'), { value: todayStr(), placeholder: 'Velg dato' });
 
   document.getElementById('addContactForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -351,15 +957,17 @@ function bind() {
     e.preventDefault();
     const title = document.getElementById('taskTitle').value.trim();
     if (!title) return;
-    const contactId = resolveContact(document.getElementById('taskContact').value);
+    const contactId = resolveContact(taskContactCombo.value);
+    const id = uid();
     state.tasks.push({
-      id: uid(), title,
+      id, title,
       note: document.getElementById('taskNote').value.trim(),
-      due: document.getElementById('taskDue').value || '',
-      priority: document.getElementById('taskPriority').value || 'normal',
+      due: taskDuePicker.value || '',
+      priority: taskPriorityDd.value || 'normal',
       contactId, done: false, createdAt: Date.now(), doneAt: null,
     });
-    e.target.reset(); document.getElementById('taskPriority').value = 'normal';
+    pendingEnterId = id; // animate the new task in
+    e.target.reset(); taskContactCombo.clear(); taskPriorityDd.value = 'normal'; taskDuePicker.value = todayStr();
     renderTasks(); document.getElementById('taskTitle').focus(); scheduleSave();
   });
 
@@ -367,14 +975,16 @@ function bind() {
     e.preventDefault();
     const title = document.getElementById('refTitle').value.trim();
     if (!title) return;
-    const contactId = resolveContact(document.getElementById('refContact').value);
+    const contactId = resolveContact(refContactCombo.value);
+    const id = uid();
     state.referater.push({
-      id: uid(), title,
+      id, title,
       note: document.getElementById('refNote').value.trim(),
-      date: document.getElementById('refDate').value || '',
+      date: refDatePicker.value || '',
       contactId, done: false, createdAt: Date.now(), doneAt: null,
     });
-    e.target.reset();
+    pendingEnterId = id;
+    e.target.reset(); refContactCombo.clear(); refDatePicker.value = todayStr();
     renderReferat(); document.getElementById('refTitle').focus(); scheduleSave();
   });
 
@@ -384,22 +994,12 @@ function bind() {
   document.getElementById('yearPrev').addEventListener('click', () => setYear(-1));
   document.getElementById('yearNext').addEventListener('click', () => setYear(1));
 
-  document.getElementById('exportBtn').addEventListener('click', async () => {
-    const ok = await window.api.exportBackup(state);
-    if (ok) { saveStateEl.textContent = 'Eksportert'; setTimeout(() => saveStateEl.textContent = '', 1500); }
-  });
-  document.getElementById('importBtn').addEventListener('click', async () => {
-    const incoming = await window.api.importBackup();
-    if (!incoming) return;
-    if (!confirm('Importere data fra fil? Dette erstatter alt som ligger her nå.')) return;
-    state = normalize(incoming); renderAll(); await window.api.save(state);
-    saveStateEl.textContent = 'Importert'; setTimeout(() => saveStateEl.textContent = '', 1500);
-  });
-
   bindSettings();
 }
 
-// ---------- settings: apply (CSS vars + zoom) ----------
+// =====================================================================
+// settings: apply (CSS vars + zoom) — unchanged contract; extended for tokens
+// =====================================================================
 function applySettings() {
   const st = state.settings, root = document.documentElement.style;
   const t = THEMES[st.theme] || THEMES.lys;
@@ -412,17 +1012,34 @@ function applySettings() {
   root.setProperty('--line-strong', t.lineStrong);
   root.setProperty('--shadow', t.shadow);
   root.setProperty('--accent', st.accent || t.accent);
+  // text colour on a filled accent: white normally, near-black when accent is light
+  const lightAccent = !st.accent && DARK_ON_ACCENT.has(st.theme);
+  root.setProperty('--on-accent', lightAccent ? '#0c1418' : '#ffffff');
+  // elevation ladder tuning — per theme (dark lifts harder, light gently)
+  root.setProperty('--surface-lift', (t.lift != null ? t.lift : 5) + '%');
   const f = FONTS.find(x => x.key === st.font) || FONTS[0];
   root.setProperty('--font', f.stack);
+  // heading font: the theme's "vibe" head font (Aesthetic = serif). If the user
+  // has explicitly chosen a serif body font, headings inherit it too.
+  root.setProperty('--font-head', (st.font === 'serif') ? f.stack : (t.head || HEAD_SANS));
   const r = clamp(st.radius, 0, 22);
   root.setProperty('--r', r + 'px');
   root.setProperty('--r-sm', Math.max(2, Math.round(r * 0.62)) + 'px');
-  root.setProperty('--text-size', clamp(st.readingSize, 12, 18) + 'px');
+  root.setProperty('--r-xs', Math.max(2, Math.round(r * 0.45)) + 'px');
+  const rs = clamp(st.readingSize, 12, 18);
+  root.setProperty('--text-size', rs + 'px');
+  // scale the whole type ramp off the reading size (base 14px) so it actually
+  // changes text everywhere — the --fs-* tokens multiply by this.
+  root.setProperty('--fs-mult', (rs / 14).toFixed(4));
   document.documentElement.style.zoom = String(clamp(st.scale, 85, 130) / 100);
+  document.documentElement.dataset.theme = st.theme;   // lets CSS scope per-theme touches
   document.documentElement.dataset.density = st.density;
   document.documentElement.dataset.contacted = st.contacted;
   document.body.dataset.bg = st.background;
 }
+
+// settings controls (built with the new components, native-free)
+let densitySeg, bgSeg, contactedSeg, readingSlider, scaleSlider, radiusSlider, accentWell;
 
 function renderSettings() {
   const st = state.settings;
@@ -431,107 +1048,479 @@ function renderSettings() {
   const tg = document.getElementById('themeGrid');
   tg.textContent = '';
   Object.entries(THEMES).forEach(([key, th]) => {
-    const card = document.createElement('button'); card.type = 'button';
-    card.className = 'theme-card' + (key === st.theme ? ' active' : '');
-    const prev = document.createElement('div'); prev.className = 'theme-prev'; prev.style.background = th.bg;
-    const bar = document.createElement('div'); bar.className = 'tp-bar'; bar.style.background = th.panel; bar.style.borderRight = '1px solid ' + th.line;
-    const p1 = document.createElement('div'); p1.className = 'tp-panel'; p1.style.background = th.lineStrong;
-    const p2 = document.createElement('div'); p2.className = 'tp-panel b'; p2.style.background = th.line;
-    const dot = document.createElement('div'); dot.className = 'tp-dot'; dot.style.background = th.accent;
+    const card = el('button', 'theme-card' + (key === st.theme ? ' active' : '')); card.type = 'button';
+    const prev = el('div', 'theme-prev'); prev.style.background = th.bg;
+    const bar = el('div', 'tp-bar'); bar.style.background = th.panel; bar.style.borderRight = '1px solid ' + th.line;
+    const p1 = el('div', 'tp-panel'); p1.style.background = th.lineStrong;
+    const p2 = el('div', 'tp-panel b'); p2.style.background = th.line;
+    const dot = el('div', 'tp-dot'); dot.style.background = th.accent;
     prev.append(bar, p1, p2, dot);
-    const name = document.createElement('div'); name.className = 'theme-name'; name.textContent = th.name;
-    card.append(prev, name);
-    card.addEventListener('click', () => { st.theme = key; st.accent = ''; applySettings(); renderSettings(); scheduleSave(); });
+    card.append(prev, el('div', 'theme-name', th.name));
+    card.addEventListener('click', () => {
+      // apply the theme as a full "vibe" bundle: colours + heading/body font +
+      // radius + accent. The user can still override any of these afterward via
+      // the controls below (which just rewrite st.font / st.radius / st.accent).
+      st.theme = key;
+      st.accent = '';                                   // → theme's default accent
+      if (th.font) st.font = th.font;                   // theme's body/heading vibe
+      if (Number.isFinite(th.radius)) st.radius = th.radius;
+      applySettings(); renderSettings(); refreshDesignLab(); scheduleSave();
+    });
     tg.appendChild(card);
   });
 
-  const sw = document.getElementById('accentSwatches'); sw.textContent = '';
+  // accent: custom colour well (opens live picker) + quick swatches + default
   const eff = (st.accent || t.accent).toLowerCase();
+  const isDefault = !st.accent;
+  const accentHost = document.getElementById('accentColor');
+  accentWell = buildColorWell(accentHost, {
+    value: eff,
+    onLive: (hex) => { st.accent = hex; applySettings(); refreshDesignLab(); scheduleSave(); }, // live, no re-render mid-drag
+    onDefault: () => { st.accent = ''; applySettings(); refreshDesignLab(); },
+    onClose: () => { renderSettings(); refreshDesignLab(); scheduleSave(); },
+  });
+  const sw = document.getElementById('accentSwatches'); sw.textContent = '';
+  // "Standard" = back to the theme's own accent (no custom override)
+  const defSw = el('button', 'swatch swatch-default' + (isDefault ? ' active' : '')); defSw.type = 'button';
+  defSw.dataset.tip = 'Standard (temaets farge)'; defSw.style.background = t.accent;
+  defSw.addEventListener('click', () => { st.accent = ''; applySettings(); renderSettings(); refreshDesignLab(); scheduleSave(); });
+  sw.appendChild(defSw);
   ACCENTS.forEach(hex => {
-    const b = document.createElement('button'); b.type = 'button'; b.title = hex;
-    b.className = 'swatch' + (hex.toLowerCase() === eff ? ' active' : '');
-    b.style.background = hex;
-    b.addEventListener('click', () => { st.accent = hex; applySettings(); renderSettings(); scheduleSave(); });
+    const b = el('button', 'swatch' + (!isDefault && hex.toLowerCase() === eff ? ' active' : '')); b.type = 'button';
+    b.dataset.hex = hex; b.dataset.tip = hex; b.style.background = hex;
+    b.addEventListener('click', () => { st.accent = hex; applySettings(); renderSettings(); refreshDesignLab(); scheduleSave(); });
     sw.appendChild(b);
   });
-  document.getElementById('accentColor').value = eff;
 
   const fg = document.getElementById('fontGrid'); fg.textContent = '';
   FONTS.forEach(f => {
-    const c = document.createElement('button'); c.type = 'button';
-    c.className = 'font-card' + (f.key === st.font ? ' active' : '');
+    const c = el('button', 'font-card' + (f.key === st.font ? ' active' : '')); c.type = 'button';
     c.style.fontFamily = f.stack;
-    const lab = document.createElement('span'); lab.textContent = f.label;
-    const eg = document.createElement('small'); eg.textContent = 'Aa Bb 123';
-    c.append(lab, eg);
+    c.append(el('span', null, f.label), el('small', null, 'Aa Bb 123'));
     c.addEventListener('click', () => { st.font = f.key; applySettings(); renderSettings(); scheduleSave(); });
     fg.appendChild(c);
   });
 
-  document.getElementById('scaleRange').value = st.scale;
-  document.getElementById('scaleVal').textContent = st.scale + '%';
-  document.getElementById('radiusRange').value = st.radius;
-  document.getElementById('radiusVal').textContent = st.radius + 'px';
-  document.getElementById('readingRange').value = st.readingSize;
+  // sliders (custom)
+  const readHost = document.getElementById('readingRange'); readHost.textContent = '';
+  readingSlider = buildSlider({ min: 12, max: 18, step: 1, value: st.readingSize, onInput: (v) => {
+    st.readingSize = clamp(v, 12, 18); document.getElementById('readingVal').textContent = st.readingSize + 'px'; applySettings(); scheduleSave();
+  } });
+  readHost.appendChild(readingSlider.el);
   document.getElementById('readingVal').textContent = st.readingSize + 'px';
-  syncSeg('densityGroup', st.density);
-  syncSeg('bgGroup', st.background);
-  syncSeg('contactedGroup', st.contacted);
+
+  const scaleHost = document.getElementById('scaleRange'); scaleHost.textContent = '';
+  // Scale zooms the whole UI, so applying it live mid-drag makes the slider jump
+  // under the cursor. Update only the label while dragging; apply zoom on release.
+  scaleSlider = buildSlider({ min: 85, max: 130, step: 5, value: st.scale,
+    onInput: (v) => { document.getElementById('scaleVal').textContent = clamp(v, 85, 130) + '%'; },
+    onChange: (v) => { st.scale = clamp(v, 85, 130); document.getElementById('scaleVal').textContent = st.scale + '%'; applySettings(); scheduleSave(); },
+  });
+  scaleHost.appendChild(scaleSlider.el);
+  document.getElementById('scaleVal').textContent = st.scale + '%';
+
+  const radiusHost = document.getElementById('radiusRange'); radiusHost.textContent = '';
+  radiusSlider = buildSlider({ min: 0, max: 22, step: 1, value: st.radius, onInput: (v) => {
+    st.radius = clamp(v, 0, 22); document.getElementById('radiusVal').textContent = st.radius + 'px'; applySettings(); scheduleSave();
+  } });
+  radiusHost.appendChild(radiusSlider.el);
+  document.getElementById('radiusVal').textContent = st.radius + 'px';
+
+  // segmented controls
+  mountSeg('densityGroup', st.density);
+  mountSeg('bgGroup', st.background);
+  mountSeg('contactedGroup', st.contacted);
 }
 
-// Segmented controls (Luftig/Kompakt, background, contacted-colour).
-function syncSeg(id, val) {
+// the segmented groups are authored as static HTML buttons; wire + sync them.
+function mountSeg(id, val) {
   const g = document.getElementById(id); if (!g) return;
   g.querySelectorAll('.seg').forEach(b => b.classList.toggle('on', b.dataset.val === val));
 }
 function wireSeg(id, key) {
   const g = document.getElementById(id); if (!g) return;
   g.querySelectorAll('.seg').forEach(b => b.addEventListener('click', () => {
-    state.settings[key] = b.dataset.val; applySettings(); syncSeg(id, b.dataset.val); scheduleSave();
+    state.settings[key] = b.dataset.val; applySettings(); mountSeg(id, b.dataset.val); scheduleSave();
   }));
 }
 
-// Static settings controls — wired once.
 function bindSettings() {
-  document.getElementById('accentColor').addEventListener('input', (e) => {
-    state.settings.accent = e.target.value; applySettings();
-    // refresh swatch highlights (cheap)
-    document.querySelectorAll('#accentSwatches .swatch').forEach(s => s.classList.toggle('active', s.title.toLowerCase() === e.target.value.toLowerCase()));
-    scheduleSave();
-  });
-  document.getElementById('scaleRange').addEventListener('input', (e) => {
-    state.settings.scale = clamp(+e.target.value, 85, 130);
-    document.getElementById('scaleVal').textContent = state.settings.scale + '%';
-    applySettings(); scheduleSave();
-  });
-  document.getElementById('radiusRange').addEventListener('input', (e) => {
-    state.settings.radius = clamp(+e.target.value, 0, 22);
-    document.getElementById('radiusVal').textContent = state.settings.radius + 'px';
-    applySettings(); scheduleSave();
-  });
-  document.getElementById('readingRange').addEventListener('input', (e) => {
-    state.settings.readingSize = clamp(+e.target.value, 12, 18);
-    document.getElementById('readingVal').textContent = state.settings.readingSize + 'px';
-    applySettings(); scheduleSave();
-  });
   wireSeg('densityGroup', 'density');
   wireSeg('bgGroup', 'background');
   wireSeg('contactedGroup', 'contacted');
+
+  document.getElementById('exportBtn').addEventListener('click', async () => {
+    const ok = await window.api.exportBackup(state);
+    if (ok) { saveStateEl.textContent = 'Eksportert'; setTimeout(() => saveStateEl.textContent = '', 1500); }
+  });
+  document.getElementById('importBtn').addEventListener('click', async () => {
+    const incoming = await window.api.importBackup();
+    if (!incoming) return;
+    confirmModal({
+      title: 'Importere data?', body: 'Dette erstatter alt som ligger her nå.', confirmLabel: 'Importer', danger: true,
+      onConfirm: async () => {
+        state = normalize(incoming); renderAll(); await window.api.save(state);
+        saveStateEl.textContent = 'Importert'; setTimeout(() => saveStateEl.textContent = '', 1500);
+      },
+    });
+  });
+  const reveal = document.getElementById('revealBtn');
+  if (reveal && window.api.revealData) reveal.addEventListener('click', () => window.api.revealData());
+
   document.getElementById('resetTheme').addEventListener('click', () => {
-    state.settings = { ...defaultSettings(), theme: state.settings.theme };
-    applySettings(); renderSettings(); scheduleSave();
+    // back to defaults, but keep the current theme AND restore that theme's vibe
+    // bundle (heading/body font + radius), so resetting doesn't strip its character.
+    const cur = state.settings.theme;
+    const th = THEMES[cur] || THEMES.lys;
+    state.settings = {
+      ...defaultSettings(), theme: cur,
+      font: th.font || 'system',
+      radius: Number.isFinite(th.radius) ? th.radius : 12,
+    };
+    applySettings(); renderSettings(); refreshDesignLab(); scheduleSave();
   });
 }
 
+// =====================================================================
+// DESIGN LAB — the component + token gallery (source of truth)
+// =====================================================================
+let labBuilt = false;
+function refreshDesignLab() { if (labBuilt) renderDesignLab(); }
+
+function labSection(title, desc) {
+  const s = el('div', 'lab-section');
+  s.appendChild(el('h2', null, title));
+  if (desc) s.appendChild(el('p', 'lab-desc', desc));
+  return s;
+}
+function labCell(label, node) {
+  const c = el('div', 'lab-cell');
+  if (label) c.appendChild(el('div', 'lab-label', label));
+  c.appendChild(node);
+  return c;
+}
+function labRow(...nodes) { const r = el('div', 'lab-row'); nodes.forEach(n => n && r.appendChild(n)); return r; }
+
+function renderDesignLab() {
+  labBuilt = true;
+  const root = document.getElementById('labRoot');
+  root.textContent = '';
+
+  // ---- TOKENS: colour palette ----
+  {
+    const sec = labSection('Farger', 'Overflater og statusfarger — følger valgt tema.');
+    const card = el('div', 'card lab-card');
+    const wrap = el('div', 'tok-colors');
+    const colorVars = [
+      ['--bg', 'Bakgrunn'], ['--surface-1', 'Overflate 1'], ['--surface-2', 'Overflate 2'], ['--surface-3', 'Overflate 3'],
+      ['--ink', 'Tekst'], ['--muted', 'Dempet'], ['--faint', 'Svak'], ['--accent', 'Aksent'],
+      ['--ok', 'OK'], ['--warn', 'Advarsel'], ['--danger', 'Fare'], ['--line', 'Linje'],
+    ];
+    colorVars.forEach(([v, name]) => {
+      const cell = el('div', 'tok-color');
+      const box = el('div', 'swatch-box'); box.style.background = `var(${v})`;
+      cell.append(box, el('div', 'tok-name', name), el('div', 'tok-var', v));
+      wrap.appendChild(cell);
+    });
+    card.appendChild(wrap); sec.appendChild(card); root.appendChild(sec);
+  }
+
+  // ---- TOKENS: type scale ----
+  {
+    const sec = labSection('Typografi', 'Geist · ett størrelse/vekt-sett per rolle.');
+    const card = el('div', 'card lab-card');
+    const wrap = el('div', 'tok-type');
+    const types = [
+      ['--fs-xl', '21px', 'Sidetittel'], ['--fs-lg', '17px', 'Seksjon'], ['--fs-md', '15px', 'Korttittel'],
+      ['--fs-base', '13.5px', 'Brødtekst'], ['--fs-sm', '12.5px', 'Etikett'], ['--fs-xs', '11px', 'Meta'],
+    ];
+    types.forEach(([v, px, role]) => {
+      const r = el('div', 'tok-type-row');
+      r.appendChild(el('span', 'tt-meta', `${role} · ${v} · ${px}`));
+      const sample = el('span', null, 'Oppfølging Aa Bb 123');
+      sample.style.fontSize = `var(${v})`;
+      r.appendChild(sample);
+      wrap.appendChild(r);
+    });
+    // weights
+    const wrow = el('div', 'tok-type-row');
+    wrow.appendChild(el('span', 'tt-meta', 'Vekter 400/500/600/700'));
+    const ws = el('span');
+    [['400', 'Regular'], ['500', 'Medium'], ['600', 'SemiBold'], ['700', 'Bold']].forEach(([w, n], i) => {
+      const s = el('span', null, n + (i < 3 ? '  ·  ' : '')); s.style.fontWeight = w; ws.appendChild(s);
+    });
+    wrow.appendChild(ws); wrap.appendChild(wrow);
+    card.appendChild(wrap); sec.appendChild(card); root.appendChild(sec);
+  }
+
+  // ---- TOKENS: spacing scale ----
+  {
+    const sec = labSection('Avstand', 'Spacing-skala — 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40.');
+    const card = el('div', 'card lab-card');
+    const wrap = el('div', 'tok-space');
+    [['--sp-1', 4], ['--sp-2', 8], ['--sp-3', 12], ['--sp-4', 16], ['--sp-5', 20], ['--sp-6', 24], ['--sp-8', 32], ['--sp-10', 40]].forEach(([v, px]) => {
+      const cell = el('div', 'ts-cell');
+      const bar = el('div', 'ts-bar'); bar.style.width = px + 'px'; bar.style.height = px + 'px';
+      cell.append(bar, el('div', 'ts-meta', `${v}`), el('div', 'ts-meta', px + 'px'));
+      wrap.appendChild(cell);
+    });
+    card.appendChild(wrap); sec.appendChild(card); root.appendChild(sec);
+  }
+
+  // ---- TOKENS: depth / elevation (the "emerging from dark" model) ----
+  {
+    const sec = labSection('Dybde / Elevation',
+      'Vinduet er det mørkeste laget. Hvert nivå løftes ~7 % mot hvitt, som om flatene stiger ut av mørket. Tydelig på mørke tema, dempet på lyse.');
+    const card = el('div', 'card lab-card');
+    const wrap = el('div', 'depth');
+
+    // 1) concentric nested layers: bg → surface-1 → surface-2 → surface-3
+    const stack = el('div', 'depth-stack');
+    stack.appendChild(el('span', 'depth-tag', 'Bakgrunn · --bg · 0 %'));
+    const l1 = el('div', 'depth-layer s1');
+    l1.append(el('div', 'depth-name', 'Overflate 1 — kort, sidefelt'), el('div', 'depth-meta', '--surface-1 · +7 % mot hvitt'));
+    const l2 = el('div', 'depth-layer s2');
+    l2.append(el('div', 'depth-name', 'Overflate 2 — hevet i kort, felter'), el('div', 'depth-meta', '--surface-2 · +14 %'));
+    const l3 = el('div', 'depth-layer s3');
+    l3.append(el('div', 'depth-name', 'Overflate 3 — meny, dato, dialog'), el('div', 'depth-meta', '--surface-3 · +22 %'));
+    l2.appendChild(l3); l1.appendChild(l2); stack.appendChild(l1);
+    wrap.appendChild(stack);
+
+    // 2) side-by-side swatch ladder so the steps are unmistakable
+    const ladder = el('div', 'depth-ladder');
+    [['--bg', 'Bakgrunn (mørkest)', '0 %'], ['--surface-1', 'Overflate 1', '+7 %'],
+     ['--surface-2', 'Overflate 2', '+14 %'], ['--surface-3', 'Overflate 3', '+22 %']].forEach(([v, name, pct]) => {
+      const rung = el('div', 'depth-rung');
+      const sw = el('div', 'dr-swatch'); sw.style.background = `var(${v})`;
+      rung.append(sw, el('span', 'dr-name', `${name}`), el('span', 'dr-var', `${v} · ${pct}`));
+      ladder.appendChild(rung);
+    });
+    wrap.appendChild(ladder);
+
+    card.appendChild(wrap);
+
+    // 3) shadow scale (border-defined, shadcn — no glow)
+    const shCard = el('div', 'card lab-card'); shCard.style.marginTop = 'var(--sp-4)';
+    const shWrap = el('div', 'tok-elev');
+    [['Flat', 'var(--elev-1)', 'var(--surface-1)'], ['Kort', 'var(--elev-2)', 'var(--surface-1)'], ['Hevet', 'var(--elev-3)', 'var(--surface-2)'], ['Pop-over', 'var(--elev-pop)', 'var(--surface-3)']].forEach(([name, sh, bg]) => {
+      const cell = el('div', 'te-cell');
+      const box = el('div', 'te-box', name); box.style.boxShadow = sh; box.style.background = bg;
+      cell.append(box, el('div', 'te-meta', name));
+      shWrap.appendChild(cell);
+    });
+    shCard.appendChild(shWrap);
+
+    sec.appendChild(card); sec.appendChild(shCard); root.appendChild(sec);
+  }
+
+  // ---- COMPONENTS: buttons ----
+  {
+    const sec = labSection('Knapper', 'Primær / sekundær / spøkelse / fare / ikon — alle på --control-h.');
+    const card = el('div', 'card lab-card');
+    const r1 = labRow(
+      button({ label: 'Primær', variant: 'primary', icon: 'plus' }),
+      button({ label: 'Sekundær', variant: 'secondary' }),
+      button({ label: 'Spøkelse', variant: 'ghost' }),
+      button({ label: 'Fare', variant: 'danger', icon: 'trash' }),
+      button({ label: 'Deaktivert', variant: 'primary', disabled: true }),
+    );
+    const ib1 = el('button', 'icon-btn'); ib1.innerHTML = icon('plus');
+    const ib2 = el('button', 'icon-btn'); ib2.innerHTML = icon('settings');
+    const ib3 = el('button', 'icon-btn bare'); ib3.innerHTML = icon('more-horizontal');
+    const r2 = labRow(
+      button({ label: 'Liten', variant: 'secondary', sm: true }),
+      ib1, ib2, ib3,
+    );
+    card.append(labCell('Varianter', r1), el('div', null, ''), labCell('Liten + ikon', r2));
+    sec.appendChild(card); root.appendChild(sec);
+  }
+
+  // ---- COMPONENTS: inputs / select / combobox / datepicker ----
+  {
+    const sec = labSection('Felter', 'Tekst, valg, kombiboks og dato-velger — alle samme høyde.');
+    const card = el('div', 'card lab-card');
+    const grid = el('div', 'lab-grid');
+
+    const ti = document.createElement('input'); ti.className = 'field'; ti.placeholder = 'Tekstfelt…'; ti.style.width = '200px';
+    grid.appendChild(labCell('Tekst', ti));
+
+    const ta = document.createElement('textarea'); ta.className = 'field'; ta.placeholder = 'Tekstområde…'; ta.style.width = '220px';
+    grid.appendChild(labCell('Tekstområde', ta));
+
+    const ddHost = el('div'); ddHost.style.width = '200px';
+    buildDropdown(ddHost, { value: 'normal', items: [{ value: 'low', label: 'Lav' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'Høy' }] });
+    grid.appendChild(labCell('Nedtrekk (select)', ddHost));
+
+    const cbHost = el('div'); cbHost.style.width = '200px';
+    buildCombo(cbHost, { getItems: () => state.contacts.map(c => ({ value: c.id, label: c.initials })) });
+    grid.appendChild(labCell('Søkbar kombiboks', cbHost));
+
+    const dpHost = el('div'); dpHost.style.width = '200px';
+    buildDatePicker(dpHost, { placeholder: 'Velg dato' });
+    grid.appendChild(labCell('Dato-velger', dpHost));
+
+    card.appendChild(grid); sec.appendChild(card); root.appendChild(sec);
+  }
+
+  // ---- COMPONENTS: selection controls ----
+  {
+    const sec = labSection('Valg-kontroller', 'Avkryssing, radio, bryter, segmentert.');
+    const card = el('div', 'card lab-card');
+    const grid = el('div', 'lab-grid');
+
+    const cbRow = labRow(
+      buildCheckbox({ checked: true, label: 'Avkrysset' }).el,
+      buildCheckbox({ checked: false, label: 'Tom' }).el,
+      buildCheckbox({ checked: false, label: 'Deaktivert', disabled: true }).el,
+    );
+    grid.appendChild(labCell('Avkryssing', cbRow));
+
+    grid.appendChild(labCell('Radio', buildRadioGroup({ value: 'b', items: [{ value: 'a', label: 'Én' }, { value: 'b', label: 'To' }, { value: 'c', label: 'Tre' }] }).el));
+
+    grid.appendChild(labCell('Bryter', labRow(buildToggle({ checked: true, label: 'På' }).el, buildToggle({ checked: false, label: 'Av' }).el)));
+
+    grid.appendChild(labCell('Segmentert', buildSegmented({ value: 'm', items: [{ value: 'd', label: 'Dag' }, { value: 'm', label: 'Måned' }, { value: 'y', label: 'År' }] }).el));
+
+    card.appendChild(grid); sec.appendChild(card); root.appendChild(sec);
+  }
+
+  // ---- COMPONENTS: slider + progress ----
+  {
+    const sec = labSection('Skyvere & fremdrift', 'Aksent-fylt skyver og fremdriftslinje.');
+    const card = el('div', 'card lab-card');
+    const s1 = buildSlider({ min: 0, max: 100, step: 1, value: 40 });
+    const sRow = el('div', 'range-row'); const sVal = el('span', 'range-val', '40');
+    s1.el.addEventListener('keydown', () => setTimeout(() => sVal.textContent = String(s1.value), 0));
+    sRow.append(s1.el, sVal);
+    const p = el('div', 'progress'); const pf = el('span'); pf.style.width = '64%'; p.appendChild(pf);
+    const pWrap = el('div'); pWrap.style.width = '280px'; pWrap.appendChild(p);
+    const p2 = el('div', 'progress ok'); const pf2 = el('span'); pf2.style.width = '100%'; p2.appendChild(pf2);
+    const pWrap2 = el('div'); pWrap2.style.width = '280px'; pWrap2.appendChild(p2);
+    card.append(labCell('Skyver', sRow), el('div'), labCell('Fremdrift', pWrap), labCell('Fullført', pWrap2));
+    sec.appendChild(card); root.appendChild(sec);
+  }
+
+  // ---- COMPONENTS: chips / badges / avatars ----
+  {
+    const sec = labSection('Brikker, merker & avatarer', null);
+    const card = el('div', 'card lab-card');
+    const chips = el('div', 'lab-row');
+    [['chip person', 'AB'], ['chip due', '14. jun'], ['chip due overdue', 'Forfalt'], ['chip prio-high', 'Høy'], ['chip prio-low', 'Lav'], ['chip ok', 'OK'], ['chip warn', 'Advarsel'], ['chip solid', 'Solid'], ['chip outline', 'Omriss']].forEach(([cls, txt]) => chips.appendChild(el('span', cls, txt)));
+    const badges = labRow(el('span', 'badge', '3'), el('span', 'badge', '12'), el('span', 'badge muted', '99+'));
+    const avs = labRow(
+      (() => { const a = el('span', 'avatar sm', 'AB'); return a; })(),
+      (() => { const a = el('span', 'avatar', 'CD'); return a; })(),
+      (() => { const a = el('span', 'avatar lg', 'EF'); return a; })(),
+      (() => { const a = el('span', 'avatar neutral', 'GH'); return a; })(),
+    );
+    card.append(labCell('Brikker', chips), labCell('Merker', badges), labCell('Avatarer', avs));
+    sec.appendChild(card); root.appendChild(sec);
+  }
+
+  // ---- COMPONENTS: cards (elevation) + list item ----
+  {
+    const sec = labSection('Kort & listeelement', 'Kort i ulike høyder, og et listeelement slik det vises i Gjøremål.');
+    const grid = el('div', 'lab-grid');
+    ['elev-1', 'elev-2', 'elev-3'].forEach((cls, i) => {
+      const c = el('div', 'card ' + cls); c.style.width = '160px'; c.style.height = '88px'; c.style.display = 'grid'; c.style.placeItems = 'center'; c.style.color = 'var(--muted)'; c.style.fontSize = 'var(--fs-sm)';
+      c.textContent = 'Kort · ' + cls;
+      grid.appendChild(c);
+    });
+    const sec2 = el('div', 'lab-section');
+    sec.appendChild(grid);
+    // list item sample
+    const list = el('div', 'item-list'); list.style.maxWidth = '520px';
+    list.appendChild(taskEl({ id: '_demo1', title: 'Eksempel-gjøremål', note: 'Et kort notat på listeelementet.', due: todayStr(), priority: 'high', contactId: null, done: false }));
+    list.appendChild(taskEl({ id: '_demo2', title: 'Fullført element', note: '', due: '', priority: 'normal', contactId: null, done: true }));
+    // strip the demo delete/checkbox side-effects: clone is fine for display, but
+    // these reference state.tasks; guard by replacing handlers is overkill — the
+    // demo ids don't exist in state so delete/check just no-op the lists.
+    sec.appendChild(labCell('Listeelement', list));
+    root.appendChild(sec);
+  }
+
+  // ---- COMPONENTS: empty state, tooltip, menu, modal ----
+  {
+    const sec = labSection('Tilstander & overlegg', 'Tom tilstand, verktøytips, meny og dialog.');
+    const card = el('div', 'card lab-card');
+
+    const es = el('div', 'empty-state');
+    const esic = el('div', 'es-ic'); esic.innerHTML = icon('inbox');
+    es.append(esic, el('div', 'es-title', 'Ingenting her ennå'), el('div', 'es-sub', 'Tom-tilstand for tomme lister og søk uten treff.'));
+    const esWrap = el('div', 'card flush'); esWrap.style.maxWidth = '360px'; esWrap.appendChild(es);
+
+    const tipBtn = button({ label: 'Hold over meg', variant: 'secondary' }); tipBtn.dataset.tip = 'Egendefinert verktøytips';
+
+    const menuBtn = button({ label: 'Åpne meny', variant: 'secondary', icon: 'more-horizontal' });
+    const menuHost = el('div'); menuHost.style.position = 'relative'; menuHost.appendChild(menuBtn);
+    menuBtn.addEventListener('click', () => buildMenu(menuBtn, [
+      { label: 'Rediger', icon: 'edit', onClick: () => {} },
+      { label: 'Vis datafil', icon: 'folder', onClick: () => {} },
+      { sep: true },
+      { label: 'Slett', icon: 'trash', danger: true, onClick: () => {} },
+    ]));
+
+    const modalBtn = button({ label: 'Åpne dialog', variant: 'primary' });
+    modalBtn.addEventListener('click', () => confirmModal({ title: 'Bekreft handling', body: 'Dette er en egendefinert dialog — ingen native vinduer.', confirmLabel: 'Bekreft' }));
+
+    card.append(labCell('Tom tilstand', esWrap), labCell('Verktøytips', tipBtn), labCell('Meny', menuHost), labCell('Dialog', modalBtn));
+    sec.appendChild(card); root.appendChild(sec);
+  }
+
+  hydrateIcons(root);
+}
+
+// =====================================================================
+// boot
+// =====================================================================
 function renderAll() {
   applySettings();
-  renderYear(); renderContactsDatalist(); renderGrid(); renderTasks(); renderReferat();
+  renderYear(); renderGrid(); renderTasks(); renderReferat();
   renderSettings();
   document.getElementById('summary').value = state.summary;
-  setView(state.view || 'oversikt');
+  if (labBuilt || state.view === 'designlab') renderDesignLab();
+  // Notater is hidden for now — never land on it
+  setView((!state.view || state.view === 'notes') ? 'oversikt' : state.view);
+}
+
+// =====================================================================
+// custom frameless window controls
+// =====================================================================
+function initWindowControls() {
+  const w = window.api && window.api.win;
+  if (!w) return;
+  const min = document.getElementById('winMin');
+  const max = document.getElementById('winMax');
+  const close = document.getElementById('winClose');
+  const tb = document.getElementById('titlebar');
+  if (min) min.addEventListener('click', () => w.minimize());
+  if (max) max.addEventListener('click', () => w.maximizeToggle());
+  if (close) close.addEventListener('click', () => w.close());
+  // double-clicking the drag strip maximizes / restores, like a native title bar
+  if (tb) tb.addEventListener('dblclick', (e) => {
+    if (e.target.closest('.win-controls')) return;
+    w.maximizeToggle();
+  });
+  const setMax = (v) => { if (max) max.classList.toggle('is-maximized', !!v); };
+  if (w.onMaximizeChange) w.onMaximizeChange(setMax);
+  if (w.isMaximized) w.isMaximized().then(setMax).catch(() => {});
+}
+
+// On close, main asks us to flush any debounced save before the window dies, so
+// a change made a fraction of a second before quitting is never lost.
+function initFlushOnClose() {
+  if (!window.api || !window.api.onFlush) return;
+  window.api.onFlush(async () => {
+    clearTimeout(saveTimer);
+    try { await window.api.save(state); } catch (_) { /* ignore — closing anyway */ }
+    window.api.flushed();
+  });
 }
 
 (async function init() {
+  hydrateIcons(document);   // static nav + header icons
+  initWindowControls();
+  initFlushOnClose();
   state = normalize(await window.api.load());
   bind();
   renderAll();

@@ -9,4 +9,17 @@ contextBridge.exposeInMainWorld('api', {
   importBackup: () => ipcRenderer.invoke('data:import'),
   dataPath: () => ipcRenderer.invoke('data:dataPath'),
   revealData: () => ipcRenderer.invoke('data:reveal'),
+
+  // custom (frameless) window controls
+  win: {
+    minimize: () => ipcRenderer.invoke('win:minimize'),
+    maximizeToggle: () => ipcRenderer.invoke('win:maximizeToggle'),
+    close: () => ipcRenderer.invoke('win:close'),
+    isMaximized: () => ipcRenderer.invoke('win:isMaximized'),
+    onMaximizeChange: (cb) => ipcRenderer.on('win:maximized', (_e, v) => cb(!!v)),
+  },
+
+  // flush-on-close: main asks us to persist before the window closes
+  onFlush: (cb) => ipcRenderer.on('app:flush', () => cb()),
+  flushed: () => ipcRenderer.send('app:flushed'),
 });

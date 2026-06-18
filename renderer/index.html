@@ -8,27 +8,45 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- custom frameless title bar: drag region + window controls, merged into the bg -->
+  <div class="titlebar" id="titlebar">
+    <div class="tb-drag"></div>
+    <div class="win-controls">
+      <button class="win-btn" id="winMin" type="button" aria-label="Minimer" title="Minimer">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><line x1="1.5" y1="5" x2="8.5" y2="5"/></svg>
+      </button>
+      <button class="win-btn" id="winMax" type="button" aria-label="Maksimer" title="Maksimer">
+        <svg class="ic-max" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1.5" width="7" height="7" rx="1"/></svg>
+        <svg class="ic-restore" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="3" width="5.5" height="5.5" rx="1"/><path d="M3.5 3V2A1 1 0 0 1 4.5 1H8A1 1 0 0 1 9 2v3.5A1 1 0 0 1 8 6.5H7.2"/></svg>
+      </button>
+      <button class="win-btn close" id="winClose" type="button" aria-label="Lukk" title="Lukk">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><line x1="1.7" y1="1.7" x2="8.3" y2="8.3"/><line x1="8.3" y1="1.7" x2="1.7" y2="8.3"/></svg>
+      </button>
+    </div>
+  </div>
+
   <div class="app">
     <!-- ---------- left nav ---------- -->
     <nav class="sidebar">
       <div class="brand">
-        <div class="logo">O</div>
+        <img class="logo" src="logo.png" alt="tdo" />
         <div class="brand-text">
           <strong>Oppfølging</strong>
           <span>lokalt · kun initialer</span>
         </div>
       </div>
 
-      <button class="nav-item active" data-nav="oversikt"><span class="ni-ic">▦</span>Oversikt</button>
-      <button class="nav-item" data-nav="tasks"><span class="ni-ic">✓</span>Gjøremål<span class="nav-badge" id="navTasks"></span></button>
-      <button class="nav-item" data-nav="referat"><span class="ni-ic">✎</span>Referat<span class="nav-badge" id="navReferat"></span></button>
-      <button class="nav-item" data-nav="notes"><span class="ni-ic">▭</span>Notater</button>
-      <button class="nav-item" data-nav="settings"><span class="ni-ic">⚙</span>Innstillinger</button>
+      <div class="navlist">
+        <button class="nav-item active" data-nav="oversikt"><span class="ni-ic" data-icon="grid"></span><span class="ni-label">Oversikt</span></button>
+        <button class="nav-item" data-nav="tasks"><span class="ni-ic" data-icon="check-square"></span><span class="ni-label">Gjøremål</span><span class="nav-badge" id="navTasks"></span></button>
+        <button class="nav-item" data-nav="referat"><span class="ni-ic" data-icon="pen-line"></span><span class="ni-label">Referat</span><span class="nav-badge" id="navReferat"></span></button>
+        <button class="nav-item hidden" data-nav="notes"><span class="ni-ic" data-icon="notebook"></span><span class="ni-label">Notater</span></button>
+        <button class="nav-item" data-nav="settings"><span class="ni-ic" data-icon="settings"></span><span class="ni-label">Innstillinger</span></button>
+        <button class="nav-item" data-nav="designlab"><span class="ni-ic" data-icon="palette"></span><span class="ni-label">Designlab</span></button>
+      </div>
 
       <div class="sidebar-foot">
         <span id="saveState" class="save-state" aria-live="polite"></span>
-        <button id="exportBtn" class="mini-btn" title="Lagre en sikkerhetskopi til fil">Eksporter</button>
-        <button id="importBtn" class="mini-btn" title="Hent data fra en sikkerhetskopi">Importer</button>
       </div>
     </nav>
 
@@ -39,13 +57,13 @@
           <h1>Kontakt-oversikt</h1>
           <div class="head-tools">
             <div class="year-switch" role="group" aria-label="Velg år">
-              <button id="yearPrev" class="icon-btn" aria-label="Forrige år">‹</button>
+              <button id="yearPrev" class="icon-btn sm" data-icon="chevron-left" aria-label="Forrige år"></button>
               <span id="yearLabel" class="year-label">2026</span>
-              <button id="yearNext" class="icon-btn" aria-label="Neste år">›</button>
+              <button id="yearNext" class="icon-btn sm" data-icon="chevron-right" aria-label="Neste år"></button>
             </div>
             <form id="addContactForm" class="inline-add" autocomplete="off">
-              <input id="contactInput" type="text" maxlength="6" placeholder="Initialer (f.eks. AB)" aria-label="Initialer for ny kontakt" />
-              <button class="btn primary" type="submit">Legg til</button>
+              <input id="contactInput" class="field uppercase" type="text" maxlength="6" placeholder="Initialer (f.eks. AB)" aria-label="Initialer for ny kontakt" />
+              <button class="btn primary" type="submit"><span class="ic" data-icon="plus"></span>Legg til</button>
             </form>
           </div>
         </div>
@@ -65,21 +83,13 @@
       <section class="view" data-view="tasks">
         <div class="view-head"><h1>Gjøremål</h1></div>
         <form id="addTaskForm" class="card form-card" autocomplete="off">
-          <input id="taskTitle" class="f-title" type="text" placeholder="Tittel…" aria-label="Tittel" />
-          <textarea id="taskNote" class="f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
+          <input id="taskTitle" class="field f-title" type="text" placeholder="Tittel…" aria-label="Tittel" />
+          <textarea id="taskNote" class="field f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
           <div class="f-row">
-            <label class="f-field"><span>Frist</span><input id="taskDue" type="date" /></label>
-            <label class="f-field"><span>Prioritet</span>
-              <select id="taskPriority">
-                <option value="low">Lav</option>
-                <option value="normal" selected>Normal</option>
-                <option value="high">Høy</option>
-              </select>
-            </label>
-            <label class="f-field grow"><span>Person (valgfritt)</span>
-              <input id="taskContact" type="text" list="contactsList" maxlength="6" placeholder="Initialer" />
-            </label>
-            <button class="btn primary f-add" type="submit">Legg til</button>
+            <div class="field-group"><span class="field-label">Frist</span><div id="taskDue"></div></div>
+            <div class="field-group"><span class="field-label">Prioritet</span><div id="taskPriorityDd"></div></div>
+            <div class="field-group grow"><span class="field-label">Person (valgfritt)</span><div id="taskContactCombo"></div></div>
+            <button class="btn primary f-add" type="submit"><span class="ic" data-icon="plus"></span>Legg til</button>
           </div>
         </form>
         <div id="taskActive" class="item-list"></div>
@@ -93,17 +103,14 @@
       <section class="view" data-view="referat">
         <div class="view-head">
           <h1>Referat-påminnelser</h1>
-          <p class="view-sub">Påminnelser om referater som skal skrives i NAVs system — ikke selve teksten.</p>
         </div>
         <form id="addReferatForm" class="card form-card" autocomplete="off">
-          <input id="refTitle" class="f-title" type="text" placeholder="Hva skal skrives?" aria-label="Hva skal skrives" />
-          <textarea id="refNote" class="f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
+          <input id="refTitle" class="field f-title" type="text" placeholder="Hva skal skrives?" aria-label="Hva skal skrives" />
+          <textarea id="refNote" class="field f-note" placeholder="Notat (valgfritt)…" aria-label="Notat"></textarea>
           <div class="f-row">
-            <label class="f-field"><span>Dato</span><input id="refDate" type="date" /></label>
-            <label class="f-field grow"><span>Person</span>
-              <input id="refContact" type="text" list="contactsList" maxlength="6" placeholder="Initialer" />
-            </label>
-            <button class="btn primary f-add" type="submit">Legg til</button>
+            <div class="field-group"><span class="field-label">Dato</span><div id="refDate"></div></div>
+            <div class="field-group grow"><span class="field-label">Person</span><div id="refContactCombo"></div></div>
+            <button class="btn primary f-add" type="submit"><span class="ic" data-icon="plus"></span>Legg til</button>
           </div>
         </form>
         <div id="refActive" class="item-list"></div>
@@ -125,7 +132,6 @@
       <section class="view" data-view="settings">
         <div class="view-head">
           <h1>Innstillinger</h1>
-          <p class="view-sub">Tilpass utseendet slik du vil ha det. Endringer vises med en gang og lagres lokalt.</p>
         </div>
         <div class="card set-card">
           <div class="set-section">
@@ -135,7 +141,7 @@
           <div class="set-section">
             <h2>Aksentfarge</h2>
             <div class="color-field">
-              <input type="color" id="accentColor" aria-label="Egendefinert aksentfarge" />
+              <div id="accentColor"></div>
               <div id="accentSwatches" class="swatches"></div>
             </div>
           </div>
@@ -153,23 +159,23 @@
           <div class="set-section">
             <h2>Tekststørrelse</h2>
             <div class="range-row">
-              <input type="range" id="readingRange" min="12" max="18" step="1" />
+              <div id="readingRange"></div>
               <span class="range-val" id="readingVal">14px</span>
             </div>
           </div>
           <div class="set-section">
             <h2>Størrelse</h2>
             <div class="range-row">
-              <input type="range" id="scaleRange" min="85" max="130" step="5" />
+              <div id="scaleRange"></div>
               <span class="range-val" id="scaleVal">100%</span>
             </div>
           </div>
           <div class="set-section">
             <h2>Hjørner (avrunding)</h2>
             <div class="range-row">
-              <input type="range" id="radiusRange" min="0" max="22" step="1" />
+              <div id="radiusRange"></div>
               <span class="range-val" id="radiusVal">12px</span>
-              <div class="radius-sample" title="Forhåndsvisning"></div>
+              <div class="radius-sample"></div>
             </div>
           </div>
           <div class="set-section">
@@ -188,14 +194,34 @@
             </div>
           </div>
           <div class="set-section">
-            <button id="resetTheme" class="btn">Tilbakestill tilpasning</button>
+            <h2>Sikkerhetskopi</h2>
+            <p class="view-sub set-intro">Lagre alle data til en fil, eller hent dem tilbake fra en tidligere kopi.</p>
+            <div class="set-actions">
+              <button id="exportBtn" class="btn secondary"><span class="ic" data-icon="download"></span>Eksporter…</button>
+              <button id="importBtn" class="btn secondary"><span class="ic" data-icon="upload"></span>Importer…</button>
+              <button id="revealBtn" class="btn ghost"><span class="ic" data-icon="folder"></span>Vis datafil</button>
+            </div>
+          </div>
+          <div class="set-section">
+            <h2>Tilbakestilling</h2>
+            <button id="resetTheme" class="btn"><span class="ic" data-icon="rotate-ccw"></span>Tilbakestill tilpasning</button>
           </div>
         </div>
+      </section>
+
+      <!-- ---------- Designlab ---------- -->
+      <section class="view" data-view="designlab">
+        <div class="view-head">
+          <h1>Designlab</h1>
+        </div>
+        <div id="labRoot" class="lab"></div>
       </section>
     </main>
   </div>
 
-  <datalist id="contactsList"></datalist>
+  <!-- modal/dialog mount point -->
+  <div id="modalMount"></div>
+
   <script src="app.js"></script>
 </body>
 </html>

@@ -66,3 +66,33 @@ runtime **dependency** (not devDependency).
 - **No custom app icon yet** — electron-builder uses the default Electron icon
   (build log: "application icon is not set"). Add `build.win.icon` (a 256px
   `.ico`) when an icon exists.
+
+## Handoff — design system in progress (read this first)
+
+**State:** Full custom design system done (no UI library; Lucide icon paths only).
+Tokens in `renderer/styles.css :root` (spacing/type/weight/radius/`--control-h`/
+elevation). Depth = surfaces lift off `--bg` toward white (+7/14/22%) → "emerges
+from dark"; shown in **Designlab** tab. Components are shadcn-style (flat, crisp,
+hairline borders, ring focus), all native-free (custom select/date-picker/checkbox/
+switch/slider/combobox/tooltip/modal). Themes are **vibe bundles** (palette + head
+font + body font + radius + accent); incl warm serif **"Estetisk"**. Geist + Georgia
+serif, self-hosted offline. Theming engine = `applySettings()` in `renderer/app.js`.
+
+**Workflow (owner is extremely pedantic re consistency):** Design Lab is the source
+of truth — build/approve a component THERE before using it anywhere. Keep everything
+token-driven. NEVER a native HTML control. Offline only (no CDN). Norwegian UI.
+
+**Run:** `cd nav-tool && ./node_modules/.bin/electron .`
+**Verify any change** headlessly: throwaway `verify.js` → `app.whenReady`, stub the
+`data:*` ipcMain handlers, hidden BrowserWindow (real preload, show:false), load
+`renderer/index.html`, capture console-message(level>=2)+did-fail-load, assert
+`querySelectorAll('select,input[type=date],input[type=checkbox],input[type=range],input[type=color],datalist').length===0`
+and zero errors; delete verify.js after. (Memory note: close stray Electron windows;
+`taskkill` needs `MSYS_NO_PATHCONV=1`.)
+
+**Next, incrementally (deferred on purpose):**
+1. Notater → structured notes (add/edit/delete, titled) instead of one textarea.
+2. To-dos → completion animation + dopamine/smooth transitions (currently instant disappear).
+3. Contacts on the Oversikt view.
+Then commit + cut **v1.0.1** (bump version → `GH_TOKEN="$(gh auth token)" npm run release`)
+so it auto-updates to her. Repo: github.com/martinbhans1/nav-tool (public).
