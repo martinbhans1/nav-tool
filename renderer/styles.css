@@ -1155,6 +1155,19 @@ textarea.field {
 .mc-dot.overdue { background: var(--danger); }
 .mc-more { font-size: var(--fs-xs); color: var(--muted); padding: 0 var(--sp-1); }
 
+/* Floating month-grid popover (JS-positioned, lives in #modalMount). Fixed +
+   high z-index so it floats above all content and is never clipped by a cell. */
+.mc-pop {
+  position: fixed; z-index: 1200; pointer-events: none;
+  max-width: 260px; padding: 8px 11px; border-radius: var(--r-sm);
+  background: var(--surface-3); color: var(--ink);
+  border: 1px solid var(--hairline-strong); box-shadow: var(--elev-pop);
+  animation: fadeIn var(--t-fast) var(--ease-out);
+}
+.mc-pop-kind { font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.mc-pop-title { font-size: var(--fs-base); font-weight: var(--fw-medium); line-height: 1.35; word-break: break-word; }
+.mc-pop-meta { font-size: var(--fs-xs); color: var(--muted); margin-top: 3px; }
+
 /* dot-summary fallback for narrow widths — hidden by default */
 .mc-dots { display: none; flex-wrap: wrap; align-items: center; gap: 3px; padding: 2px var(--sp-1); }
 .mc-dots-count { font-size: 9px; color: var(--muted); }
@@ -1337,11 +1350,13 @@ textarea.field {
 @keyframes modalIn { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 .modal-head { padding: var(--sp-4) var(--sp-5) var(--sp-2); }
 .modal-title { font-family: var(--font-head); font-size: var(--fs-md); font-weight: var(--fw-semibold); }
-.modal-body { padding: var(--sp-2) var(--sp-5) var(--sp-4); color: var(--muted); font-size: var(--fs-base); line-height: 1.5; }
+.modal-body { padding: var(--sp-2) var(--sp-5) var(--sp-4); color: var(--muted); font-size: var(--fs-base); line-height: 1.5; overflow-x: hidden; }
+/* titleless modal (no head bar): restore the top breathing room the head gave */
+.modal-body--notitle { padding-top: var(--sp-5); }
 .modal-foot { display: flex; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--hairline); background: var(--surface-1); }
 /* the detail-modal body can get tall (history + tasks + referater + quick-add)
    → cap its height and let it scroll internally, keeping the header pinned */
-.cd { max-height: min(72vh, 640px); overflow-y: auto; }
+.cd { max-height: min(72vh, 640px); overflow-y: auto; overflow-x: hidden; }
 
 /* =====================================================================
    KONTAKT-DETALJ (contact-detail modal internals)
@@ -1360,9 +1375,9 @@ textarea.field {
 }
 /* month-pill row: 12 small toggles; contacted ones fill, others stay muted */
 .cd-hist { display: flex; flex-direction: column; gap: var(--sp-2); }
-.cd-pills { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+.cd-pills { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; }
 .cd-pill {
-  height: 30px; padding: 0; border-radius: var(--r-xs); cursor: pointer;
+  height: 30px; padding: 0; border-radius: var(--r-xs); cursor: pointer; min-width: 0; overflow: hidden;
   border: 1px solid var(--hairline-strong); background: var(--surface-1); color: var(--muted);
   font-size: 10px; font-weight: var(--fw-semibold); letter-spacing: .01em;
   display: flex; align-items: center; justify-content: center;
@@ -1402,7 +1417,14 @@ textarea.field {
 .grid-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0; }
 /* fixed layout: every column keeps a constant width regardless of its content,
    so a cell changing from "67%" to "100%" never reflows / shifts the others */
-.grid { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
+/* width:100% + table-layout:fixed distributes 13 columns; the per-column integer
+   rounding makes the table's content box a couple px wider than its border box,
+   which `.grid-scroll`'s overflow:auto would otherwise surface as a phantom
+   horizontal scrollbar that scrolls ~2px and does nothing. `overflow: clip`
+   trims that internal rounding overflow without changing the table layout. A
+   real `min-width` keeps a genuine horizontal scroll when the window is truly
+   narrow (the columns can't usefully shrink past it). */
+.grid { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 480px; table-layout: fixed; overflow: clip; }
 .grid th, .grid td { text-align: center; padding: 0; }
 .grid thead th {
   position: sticky; top: 0; z-index: 2; background: var(--surface-1);
@@ -1490,10 +1512,13 @@ textarea.field {
 
 .form-card { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); flex-shrink: 0; margin-bottom: var(--sp-4); }
 .form-card .f-title.field { font-size: var(--fs-md); font-weight: var(--fw-medium); }
-.f-row { display: flex; gap: var(--sp-3); align-items: flex-end; flex-wrap: wrap; }
-.f-row .field-group { flex: 0 0 auto; width: 150px; }
-.f-row .field-group.grow { flex: 1; width: auto; min-width: 150px; }
-.f-add { margin-left: auto; }
+/* Each form is now a stack of single-line .f-rows so the two columns' add-forms
+   line up row-for-row and match in height. Field-groups share the row evenly and
+   are allowed to shrink (min-width:0) so nothing forces a horizontal scrollbar. */
+.f-row { display: flex; gap: var(--sp-3); align-items: flex-end; }
+.f-row .field-group { flex: 1 1 0; min-width: 0; }
+.f-row .field-group.grow { flex: 1 1 0; min-width: 0; }
+.f-add { flex: 0 0 auto; }
 
 /* =====================================================================
    NOTES

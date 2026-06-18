@@ -712,9 +712,16 @@ function openModal({ title, bodyNode, footNode, width }) {
   const overlay = el('div', 'modal-overlay');
   const modal = el('div', 'modal');
   if (width) modal.style.width = width + 'px';
-  const head = el('div', 'modal-head'); head.appendChild(el('div', 'modal-title', title || ''));
   const body = el('div', 'modal-body'); if (bodyNode) body.appendChild(bodyNode);
-  modal.append(head, body);
+  // Only render the header bar when there's an actual title — a titleless modal
+  // (e.g. the contact-detail view, which carries its own header) gets no empty bar.
+  if (title) {
+    const head = el('div', 'modal-head'); head.appendChild(el('div', 'modal-title', title));
+    modal.append(head, body);
+  } else {
+    body.classList.add('modal-body--notitle');
+    modal.append(body);
+  }
   if (footNode) { const foot = el('div', 'modal-foot'); foot.appendChild(footNode); modal.appendChild(foot); }
   overlay.appendChild(modal);
   const close = () => overlay.remove();
@@ -972,7 +979,10 @@ function openContactDetail(contactId) {
   if (!c) return;
 
   const body = el('div', 'cd');
-  const m = openModal({ title: c.initials, bodyNode: body, width: 520 });
+  // No modal title here: the identity lives once in the .cd-header (avatar +
+  // initials-as-name + "Kontakt" subline). A redundant title would repeat the
+  // initials a third time.
+  const m = openModal({ bodyNode: body, width: 520 });
 
   // a small titled section: subheader + a content node
   function section(title, count, node) {
@@ -1414,14 +1424,54 @@ function monthItemPill(entry) {
   pill.appendChild(el('span', 'mc-dot'));
   pill.appendChild(el('span', 'mc-item-title', it.title || (kind === 'ref' ? 'Referat' : 'Gjøremål')));
   const tipKind = kind === 'ref' ? 'Referat' : 'Gjøremål';
-  pill.dataset.tip = tipKind + (it.title ? ' · ' + it.title : '');
+  // Hover/focus → a JS-positioned floating popover (appended to #modalMount, NOT
+  // the day cell) so it floats above everything and is clamped to the viewport,
+  // instead of the old CSS [data-tip] that got clipped by .mc-cell's overflow.
+  const showPop = () => showMonthPop(pill, { kind: tipKind, title: it.title, date: entry.date, contactId: it.contactId });
+  pill.addEventListener('mouseenter', showPop);
+  pill.addEventListener('focus', showPop);
+  pill.addEventListener('mouseleave', hideMonthPop);
+  pill.addEventListener('blur', hideMonthPop);
   // Clicking opens the linked contact if any; otherwise jumps to its page.
   pill.addEventListener('click', (e) => {
     e.stopPropagation();
+    hideMonthPop();
     if (it.contactId && contactById(it.contactId)) openContactDetail(it.contactId);
     else setView(kind === 'ref' ? 'referat' : 'tasks');
   });
   return pill;
+}
+
+// Floating popover for month-grid pills. Lives in #modalMount (position:fixed,
+// high z-index) so it's never clipped by .mc-cell/.month-card overflow, and is
+// clamped/flipped to stay fully inside the window.
+let _mcPop = null;
+function hideMonthPop() {
+  if (_mcPop) { _mcPop.remove(); _mcPop = null; }
+}
+function showMonthPop(anchor, info) {
+  hideMonthPop();
+  const pop = el('div', 'mc-pop');
+  pop.appendChild(el('div', 'mc-pop-kind', info.kind));
+  pop.appendChild(el('div', 'mc-pop-title', info.title || (info.kind === 'Referat' ? 'Referat' : 'Gjøremål')));
+  const metaBits = [];
+  if (info.date) metaBits.push(fmtDate(info.date));
+  if (info.contactId) { const c = contactById(info.contactId); if (c) metaBits.push(c.initials); }
+  if (metaBits.length) pop.appendChild(el('div', 'mc-pop-meta', metaBits.join(' · ')));
+  (modalMount || document.body).appendChild(pop);
+
+  // Position: prefer above the pill, flip below if it would clip the top.
+  // Then clamp horizontally so it never overflows either window edge.
+  const a = anchor.getBoundingClientRect();
+  const pad = 8;
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let top = a.top - ph - pad;
+  if (top < pad) top = a.bottom + pad;                    // flip below
+  if (top + ph > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - ph - pad);
+  let left = a.left + a.width / 2 - pw / 2;                // center on pill
+  left = Math.max(pad, Math.min(left, window.innerWidth - pw - pad));
+  pop.style.top = top + 'px';
+  pop.style.left = left + 'px';
 }
 
 // Render the Måned view (month grid) into #monthRoot.
@@ -1429,6 +1479,7 @@ const MAX_CELL_ITEMS = 3;
 function renderMonthGrid() {
   const root = document.getElementById('monthRoot');
   if (!root) return;
+  hideMonthPop(); // drop any lingering popover before the grid is rebuilt
   root.textContent = '';
   renderKalToolbar(); // keep the month label in sync
 
