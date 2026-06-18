@@ -442,6 +442,50 @@ body {
               0 6px 24px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
+/* --- Lab card isolation ---------------------------------------------------
+   Each Komponent-lab card must ALWAYS preview its OWN variant, regardless of
+   the globally selected style on <html>. The root scope ([data-btn-style="X"]
+   on <html>) is a bare attribute selector, so it ALSO matches every card's
+   .btn.primary as a descendant — and at equal specificity source order decides,
+   making all cards adopt whichever block comes last. We out-specify the root by
+   adding the card class (.btn-style-card[data-btn-style="X"]): class+attr beats
+   a bare attr, so the card's own variant always wins inside the card. */
+.btn-style-card[data-btn-style="solid"] .btn.primary {
+  background: var(--accent); border-color: transparent; color: var(--on-accent);
+  border-radius: var(--r-sm); box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.btn-style-card[data-btn-style="lift"] .btn.primary {
+  background: var(--accent); border-color: transparent; color: var(--on-accent);
+  border-radius: var(--r-sm); box-shadow: var(--elev-2);
+}
+.btn-style-card[data-btn-style="sharp"] .btn.primary {
+  background: var(--accent); border-color: transparent; color: var(--on-accent);
+  border-radius: 0; box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.btn-style-card[data-btn-style="pill"] .btn.primary {
+  background: var(--accent); border-color: transparent; color: var(--on-accent);
+  border-radius: var(--r-pill); box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.btn-style-card[data-btn-style="soft"] .btn.primary {
+  background: var(--accent-soft); border-color: transparent; color: var(--accent);
+  border-radius: var(--r-sm); box-shadow: none;
+}
+.btn-style-card[data-btn-style="outline"] .btn.primary {
+  background: transparent; border-color: var(--accent); color: var(--accent);
+  border-radius: var(--r-sm); box-shadow: none;
+}
+.btn-style-card[data-btn-style="gradient"] .btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-press));
+  border-color: transparent; color: var(--on-accent);
+  border-radius: var(--r-sm); box-shadow: var(--elev-1);
+}
+.btn-style-card[data-btn-style="glow"] .btn.primary {
+  background: var(--accent); border-color: transparent; color: var(--on-accent);
+  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
+              0 4px 18px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 /* =====================================================================
    FIELD STYLES — the live, app-wide form-field "vibe" (Komponent-lab).
    Scoped by [data-field-style="X"] on <html> (whole app) OR by a card
@@ -544,6 +588,32 @@ body {
   border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring);
 }
 
+/* --- Lab card isolation (Felt) -------------------------------------------
+   Same problem/fix as the buttons: the bare [data-field-style="X"] root scope
+   matches every card's .field as a descendant. Out-specify with the card class
+   so each Felt card always previews its own variant. */
+.btn-style-card[data-field-style="standard"] .field {
+  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sm); box-shadow: none;
+}
+.btn-style-card[data-field-style="myk"] .field {
+  background: var(--surface-3); border: 1px solid var(--hairline);
+  border-radius: var(--r-sm); box-shadow: none;
+}
+.btn-style-card[data-field-style="understrek"] .field {
+  background: transparent; border: 0; border-bottom: 1px solid var(--hairline-strong);
+  border-radius: 0; box-shadow: none; padding-left: 2px; padding-right: 2px;
+}
+.btn-style-card[data-field-style="skarp"] .field {
+  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  border-radius: 0; box-shadow: none;
+}
+.btn-style-card[data-field-style="pille"] .field {
+  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill); box-shadow: none;
+  padding-left: calc(var(--control-pad-x) + 4px); padding-right: calc(var(--control-pad-x) + 4px);
+}
+
 /* =====================================================================
    DROPDOWN STYLES — the live, app-wide "vibe" for the floating menu (.pop)
    shared by dropdown / combobox / menu. Scoped by [data-dd-style="X"] on
@@ -580,6 +650,31 @@ body {
   border-radius: var(--r-sm); box-shadow: var(--elev-1); padding: var(--sp-1);
 }
 [data-dd-style="kant"] .pop-item { padding: 8px 9px; border-radius: var(--r-xs); }
+
+/* --- Lab card isolation (Nedtrekk) ---------------------------------------
+   Same problem/fix: out-specify the bare root [data-dd-style="X"] with the
+   card class so each Nedtrekk card always previews its own variant. */
+.btn-style-card[data-dd-style="standard"] .pop {
+  background: var(--surface-3); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sm); box-shadow: var(--elev-pop); padding: var(--sp-1);
+}
+.btn-style-card[data-dd-style="standard"] .pop-item { padding: 8px 9px; border-radius: var(--r-xs); }
+.btn-style-card[data-dd-style="myk"] .pop {
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  border-radius: var(--r); box-shadow: var(--elev-2); padding: var(--sp-2);
+}
+.btn-style-card[data-dd-style="myk"] .pop-item { padding: 9px 10px; border-radius: var(--r-sm); }
+.btn-style-card[data-dd-style="kompakt"] .pop {
+  background: var(--surface-3); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sm); box-shadow: var(--elev-pop); padding: 3px;
+}
+.btn-style-card[data-dd-style="kompakt"] .pop-item { padding: 5px 8px; border-radius: var(--r-xs); }
+.btn-style-card[data-dd-style="kant"] .pop {
+  background: var(--surface-1);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: var(--r-sm); box-shadow: var(--elev-1); padding: var(--sp-1);
+}
+.btn-style-card[data-dd-style="kant"] .pop-item { padding: 8px 9px; border-radius: var(--r-xs); }
 
 /* icon-only button */
 .icon-btn {
@@ -856,12 +951,11 @@ textarea.field {
 [data-theme="estetisk"] .chip.person { background: color-mix(in srgb, var(--accent) 22%, var(--surface-1)); }
 /* "that-girl" design principles applied to the Estetisk vibe: a warm greige
    window with near-white cards floating on top (real contrast, not peachy mush),
-   defined-but-soft borders, and editorial serif headings. The card surfaces are
-   set explicitly (not lifted from --bg) so they read clearly brighter. */
+   defined-but-soft borders, and editorial serif headings. The card surfaces now
+   come from the theme's `panel` via applySettings() (the general theme-driven
+   surface mechanism) — Estetisk's panel is tuned to the same warm near-white it
+   always used, so it looks unchanged. Only the hairline tweaks remain here. */
 [data-theme="estetisk"] {
-  --surface-1: #fefdfb;   /* cards / sidebar — clean warm-white, pops off the greige bg */
-  --surface-2: #ffffff;   /* raised controls on a card */
-  --surface-3: #ffffff;   /* floating overlays */
   --hairline: color-mix(in srgb, var(--ink) 9%, transparent);
   --hairline-strong: color-mix(in srgb, var(--ink) 14%, transparent);
 }
@@ -1301,6 +1395,9 @@ textarea.field {
 .tb-sample-btn { padding: 5px 12px; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .tb-sample-chip { padding: 3px 9px; border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: var(--fw-medium); }
 .tb-sample-dot { width: 16px; height: 16px; border-radius: 50%; }
+.tb-sample-field { flex: 1; min-width: 80px; padding: 6px 10px; font-size: var(--fs-sm); }
+.tb-sample-cell { width: 24px; height: 24px; flex-shrink: 0; display: grid; place-items: center; }
+.tb-sample-cell .check { width: 15px; height: 15px; }
 .swatches { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
 .swatch { width: 30px; height: 30px; border-radius: var(--r-sm); border: 2px solid var(--line); cursor: pointer; padding: 0; transition: transform .05s; }
 .swatch:hover { transform: scale(1.08); }
@@ -1330,18 +1427,21 @@ textarea.field {
 .color-field { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }
 /* custom colour-well replaces native <input type=color> */
 .color-well { width: 44px; height: var(--control-h); border: 1px solid var(--line-strong); border-radius: var(--r-sm); cursor: pointer; padding: 4px; background: var(--surface-1); position: relative; }
-.color-well .cw-swatch { width: 100%; height: 100%; border-radius: calc(var(--r-sm) - 4px); }
+.color-well .cw-swatch { display: block; width: 100%; height: 100%; min-height: 14px; border-radius: calc(var(--r-sm) - 4px); }
 .color-well:hover { border-color: var(--accent); }
 .set-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .set-intro { margin: 0 0 var(--sp-3); }
 
 /* ---- live theme preview (Tema category) — restyled live by applySettings ---- */
 .theme-preview { max-width: 460px; }
+/* the stage paints the window background so the card visibly floats on it */
+.tprev-stage { background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--r); padding: var(--sp-4); }
 .tprev-card {
-  background: var(--surface-2); border: 1px solid var(--hairline);
+  background: var(--surface-1); border: 1px solid var(--hairline);
   border-radius: var(--r); padding: var(--sp-4); box-shadow: var(--elev-1);
   display: flex; flex-direction: column; gap: var(--sp-2);
 }
+.tprev-row .field { width: auto; flex: 1; min-width: 120px; }
 .tprev-head { font-family: var(--font-head); font-size: var(--fs-lg); font-weight: var(--fw-semibold); color: var(--ink); letter-spacing: -.01em; }
 .tprev-body { font-size: var(--fs-base); color: var(--muted); }
 .tprev-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-1); }
@@ -1457,8 +1557,10 @@ textarea.field {
   font-size: 9.5px; font-weight: var(--fw-bold); letter-spacing: .06em;
   color: var(--on-accent); background: var(--accent); border-radius: var(--r-pill); padding: 2px 7px;
 }
-.btn-style-sample { display: grid; place-items: center; min-height: 40px; }
-.btn-style-sample .field { pointer-events: none; }
+.btn-style-sample { display: grid; place-items: center; min-height: 40px; width: 100%; }
+/* the Felt preview is a real input — make it fill the card so the variant
+   (border, fill, radius, underline) is clearly legible in light AND dark. */
+.btn-style-sample .field { pointer-events: none; width: 100%; }
 /* the Nedtrekk preview renders a real .pop inline (not floating) inside the card */
 .dd-style-sample { display: block; min-height: 40px; }
 .dd-style-mock {

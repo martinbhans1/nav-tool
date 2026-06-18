@@ -31,8 +31,8 @@ function fmtDate(s) {
   if (fmt === 'numerisk') {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
   }
-  const base = d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' });
-  return d.getFullYear() === new Date().getFullYear() ? base : `${base} ${String(d.getFullYear()).slice(2)}`;
+  // lang = genuinely long: full month name + year, e.g. "18. juni 2026"
+  return d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 const isOverdue = (s) => !!s && s < todayStr();
 // the new-task date prefilled per the "Standard frist" setting
@@ -122,13 +122,13 @@ const HEAD_SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Constantia, G
 // dark themes lift harder so the "emerging from dark" steps are unmistakable,
 // light themes lift gently so the ladder stays subtle.
 const THEMES = {
-  lys:      { name: 'Lys',      bg: '#f5f6f8', panel: '#ffffff', ink: '#1b2230', muted: '#6b7480', faint: '#9aa3af', line: '#e6e8ec', lineStrong: '#d8dbe1', accent: '#4f46e5', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 12, lift: 4.5 },
-  rosa:     { name: 'Rosa',     bg: '#fdf4f7', panel: '#fffafc', ink: '#3b2530', muted: '#8a6b76', faint: '#bd9aa6', line: '#f4e2e9', lineStrong: '#ecd2dd', accent: '#db2777', shadow: '0 1px 2px rgba(80,20,45,.05), 0 6px 20px rgba(120,30,70,.08)', head: HEAD_SANS, font: 'system', radius: 14, lift: 4.5 },
-  lavendel: { name: 'Lavendel', bg: '#f6f4fd', panel: '#fffdff', ink: '#2c2440', muted: '#756b8a', faint: '#a99fc0', line: '#e9e3f6', lineStrong: '#ddd4ef', accent: '#7c3aed', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 13, lift: 4.5 },
-  sand:     { name: 'Sand',     bg: '#f7f4ee', panel: '#fffdf8', ink: '#2f2a22', muted: '#7d7361', faint: '#b3a995', line: '#ece5d8', lineStrong: '#e0d7c4', accent: '#b4530a', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 12, lift: 4.5 },
-  mynte:    { name: 'Mynte',    bg: '#eef7f2', panel: '#fbfffd', ink: '#1c2a26', muted: '#5f7a70', faint: '#9bb5aa', line: '#dcebe4', lineStrong: '#cce0d6', accent: '#0d9488', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 12, lift: 4.5 },
-  fersken:  { name: 'Fersken',  bg: '#fdf3ed', panel: '#fffbf8', ink: '#3a2820', muted: '#8a6f60', faint: '#c2a795', line: '#f5e3d8', lineStrong: '#eed5c6', accent: '#e0603a', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 14, lift: 4.5 },
-  estetisk: { name: 'Estetisk', bg: '#e7e1d4', panel: '#fcfbf7', ink: '#403930', muted: '#8a7d6c', faint: '#b3a692', line: '#e2d9c8', lineStrong: '#d0c4ad', accent: '#9d7a54', shadow: '0 1px 2px rgba(74,64,56,.05), 0 10px 30px rgba(120,100,80,.12)', head: HEAD_SERIF, font: 'system', radius: 18, lift: 5 },
+  lys:      { name: 'Lys',      bg: '#eceef2', panel: '#ffffff', ink: '#1b2230', muted: '#6b7480', faint: '#9aa3af', line: '#e6e8ec', lineStrong: '#d8dbe1', accent: '#4f46e5', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 12, lift: 4.5 },
+  rosa:     { name: 'Rosa',     bg: '#f7e4ec', panel: '#fffafc', ink: '#3b2530', muted: '#8a6b76', faint: '#bd9aa6', line: '#f4e2e9', lineStrong: '#ecd2dd', accent: '#db2777', shadow: '0 1px 2px rgba(80,20,45,.05), 0 6px 20px rgba(120,30,70,.08)', head: HEAD_SANS, font: 'system', radius: 14, lift: 4.5 },
+  lavendel: { name: 'Lavendel', bg: '#ece6fa', panel: '#fffdff', ink: '#2c2440', muted: '#756b8a', faint: '#a99fc0', line: '#e9e3f6', lineStrong: '#ddd4ef', accent: '#7c3aed', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 13, lift: 4.5 },
+  sand:     { name: 'Sand',     bg: '#efe8da', panel: '#fffdf8', ink: '#2f2a22', muted: '#7d7361', faint: '#b3a995', line: '#ece5d8', lineStrong: '#e0d7c4', accent: '#b4530a', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 12, lift: 4.5 },
+  mynte:    { name: 'Mynte',    bg: '#e0f0e7', panel: '#fbfffd', ink: '#1c2a26', muted: '#5f7a70', faint: '#9bb5aa', line: '#dcebe4', lineStrong: '#cce0d6', accent: '#0d9488', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 12, lift: 4.5 },
+  fersken:  { name: 'Fersken',  bg: '#f9e6da', panel: '#fffbf8', ink: '#3a2820', muted: '#8a6f60', faint: '#c2a795', line: '#f5e3d8', lineStrong: '#eed5c6', accent: '#e0603a', shadow: SHADOW_LIGHT, head: HEAD_SANS,  font: 'system', radius: 14, lift: 4.5 },
+  estetisk: { name: 'Estetisk', bg: '#e7e1d4', panel: '#fefdfb', ink: '#403930', muted: '#8a7d6c', faint: '#b3a692', line: '#e2d9c8', lineStrong: '#d0c4ad', accent: '#9d7a54', shadow: '0 1px 2px rgba(74,64,56,.05), 0 10px 30px rgba(120,100,80,.12)', head: HEAD_SERIF, font: 'system', radius: 18, lift: 5 },
   kontrast: { name: 'Kontrast', bg: '#ffffff', panel: '#ffffff', ink: '#000000', muted: '#2b2b2b', faint: '#555555', line: '#161616', lineStrong: '#000000', accent: '#1d4ed8', shadow: 'none', head: HEAD_SANS, font: 'system', radius: 8, lift: 4 },
   mork:     { name: 'Mørk',     bg: '#14161b', panel: '#1c1f26', ink: '#e7eaf0', muted: '#9aa3b2', faint: '#6b7280', line: '#2a2e37', lineStrong: '#363b46', accent: '#818cf8', shadow: SHADOW_DARK, head: HEAD_SANS, font: 'system', radius: 12, lift: 7 },
   grafitt:  { name: 'Grafitt',  bg: '#1a1c1f', panel: '#232629', ink: '#e8eaed', muted: '#9aa0a8', faint: '#6a7078', line: '#2f3338', lineStrong: '#3b4046', accent: '#7aa2c9', shadow: SHADOW_DARK, head: HEAD_SANS, font: 'system', radius: 10, lift: 7 },
@@ -1727,8 +1727,23 @@ function applySettings() {
   // text colour on a filled accent: white normally, near-black when accent is light
   const lightAccent = !st.accent && DARK_ON_ACCENT.has(st.theme);
   root.setProperty('--on-accent', lightAccent ? '#0c1418' : '#ffffff');
-  // elevation ladder tuning — per theme (dark lifts harder, light gently)
+  // elevation ladder tuning — per theme (dark lifts harder, light gently).
+  // --surface-lift remains the FALLBACK knob, but surfaces are now theme-driven
+  // (below) so a custom theme can carry an explicit card surface.
   root.setProperty('--surface-lift', (t.lift != null ? t.lift : 5) + '%');
+  // Surfaces are now driven by the theme's `panel` (the card/pane colour), so
+  // each theme — built-in OR custom — can carry an explicit, distinct card
+  // surface that floats off the window --bg. surface-1 = panel; surface-2/3 are
+  // gentle steps further from the bg (toward white on light themes, toward a
+  // lighter panel on dark) so the elevation ladder still reads. This replaces
+  // the old estetisk-only CSS override with a general mechanism.
+  const dark = hexLuminance(t.bg) < 0.5;
+  const s1 = t.panel;
+  const s2 = dark ? mixHex(s1, '#ffffff', 0.05) : mixHex(s1, '#ffffff', 0.5);
+  const s3 = dark ? mixHex(s1, '#ffffff', 0.09) : '#ffffff';
+  root.setProperty('--surface-1', s1);
+  root.setProperty('--surface-2', s2);
+  root.setProperty('--surface-3', s3);
   const f = FONTS.find(x => x.key === st.font) || FONTS[0];
   root.setProperty('--font', f.stack);
   // heading font: explicit override wins, else the theme's "vibe" head font
@@ -1969,7 +1984,7 @@ function renderSettings() {
   const dfHost = document.getElementById('dateFormatGroup'); dfHost.textContent = '';
   const dfSeg = buildSegmented({
     value: st.dateFormat,
-    items: [{ value: 'lang', label: 'Lang (18. jun)' }, { value: 'numerisk', label: 'Numerisk (18.06.2026)' }],
+    items: [{ value: 'lang', label: 'Lang (18. juni 2026)' }, { value: 'numerisk', label: 'Numerisk (18.06.2026)' }],
     onChange: (v) => {
       st.dateFormat = v;
       // dates appear app-wide; re-render the data views so chips/agenda update now.
@@ -1988,18 +2003,28 @@ function buildThemePreview() {
   const host = document.getElementById('themePreview');
   if (!host) return;
   host.textContent = '';
+  // window-bg "stage" so the card visibly floats on the background
+  const stage = el('div', 'tprev-stage');
   const card = el('div', 'tprev-card');
   card.appendChild(el('div', 'tprev-head', 'Forhåndsvisning'));
-  card.appendChild(el('div', 'tprev-body', 'Slik ser tekst, knapper og merker ut med valgt tema.'));
+  card.appendChild(el('div', 'tprev-body', 'Slik ser overskrift, tekst, knapper, merker og felt ut med valgt tema.'));
+  // row 1: primary button + chips + contacted cell
   const row = el('div', 'tprev-row');
   row.appendChild(button({ label: 'Knapp', variant: 'primary', icon: 'check' }));
   const chip1 = el('span', 'chip person'); { const i = el('span', 'ic'); i.innerHTML = icon('user'); chip1.append(i, el('span', null, 'AB')); }
   const chip2 = el('span', 'chip due'); chip2.textContent = fmtDate(todayStr());
-  // sample contacted cell (green check)
   const cell = el('span', 'tprev-cell on'); cell.innerHTML = CHECK_SVG;
   row.append(chip1, chip2, cell);
   card.appendChild(row);
-  host.appendChild(card);
+  // row 2: a real input field (token-driven, follows the field style)
+  const row2 = el('div', 'tprev-row');
+  const field = document.createElement('input');
+  field.className = 'field'; field.type = 'text'; field.placeholder = 'Søk…';
+  field.tabIndex = -1; field.readOnly = true;
+  row2.appendChild(field);
+  card.appendChild(row2);
+  stage.appendChild(card);
+  host.appendChild(stage);
 }
 
 // =====================================================================
@@ -2008,13 +2033,17 @@ function buildThemePreview() {
 // Derive a full 11-field vibe bundle from just 3 chosen colours (bg/ink/accent)
 // plus a heading-font choice and a radius. Light vs dark is read off the bg
 // luminance; the rest of the palette is mixed from ink↔bg so it stays coherent.
-function deriveTheme({ bg, ink, accent, serif, radius }) {
+function deriveTheme({ bg, flate, ink, accent, serif, radius }) {
   const dark = hexLuminance(bg) < 0.5;
   const white = '#ffffff';
+  // The card surface ("Flate") is now an EXPLICIT colour the user picks, so the
+  // window bg and the cards can differ deliberately. Fall back to a derived
+  // lift off bg only if no flate is provided (older callers / safety).
+  const panel = (flate && HEX6.test(flate)) ? flate
+    : (dark ? mixHex(bg, white, 0.07) : mixHex(bg, white, 0.55));
   return {
     bg,
-    // panel lifts off bg toward white (light) / a lighter surface (dark)
-    panel: dark ? mixHex(bg, white, 0.07) : mixHex(bg, white, 0.55),
+    panel,
     ink,
     muted: mixHex(bg, ink, 0.52),
     faint: mixHex(bg, ink, 0.32),
@@ -2034,28 +2063,49 @@ function deriveTheme({ bg, ink, accent, serif, radius }) {
 function renderThemeSample(host, th) {
   host.textContent = '';
   host.className = 'tb-sample';
-  // scope the palette as inline CSS vars so token-driven children inherit it
+  // the OUTER host is the window background; the inner card uses the panel
+  // (Flate) colour — so the bg-vs-card separation is obvious at a glance.
   host.style.background = th.bg;
   host.style.color = th.ink;
   host.style.border = '1px solid ' + th.line;
+  const rad = clamp(th.radius, 0, 22);
+  const radSm = Math.max(2, Math.round(rad * 0.62));
+  const onAccent = hexLuminance(th.accent) > 0.62 ? '#0c1418' : '#ffffff';
+
   const card = el('div', 'tb-sample-card');
   card.style.background = th.panel;
   card.style.border = '1px solid ' + th.line;
-  card.style.borderRadius = clamp(th.radius, 0, 22) + 'px';
+  card.style.borderRadius = rad + 'px';
+
   const head = el('div', 'tb-sample-head', 'Forhåndsvisning');
   head.style.fontFamily = th.head; head.style.color = th.ink;
-  const body = el('div', 'tb-sample-body', 'Slik ser tekst, knapper og merker ut.');
+  const body = el('div', 'tb-sample-body', 'Slik ser overskrift, tekst, knapper, merker og felt ut med temaet.');
   body.style.color = th.muted;
+
+  // row 1: primary button + two chips
   const row = el('div', 'tb-sample-row');
   const btn = el('span', 'tb-sample-btn', 'Knapp');
-  btn.style.background = th.accent;
-  btn.style.color = hexLuminance(th.accent) > 0.62 ? '#0c1418' : '#ffffff';
-  btn.style.borderRadius = Math.max(2, Math.round(clamp(th.radius, 0, 22) * 0.62)) + 'px';
-  const chip = el('span', 'tb-sample-chip', 'AB');
-  chip.style.background = th.lineStrong; chip.style.color = th.ink;
+  btn.style.background = th.accent; btn.style.color = onAccent;
+  btn.style.borderRadius = radSm + 'px';
+  const chip1 = el('span', 'tb-sample-chip', 'AB');
+  chip1.style.background = th.lineStrong; chip1.style.color = th.ink;
+  const chip2 = el('span', 'tb-sample-chip', 'Frist');
+  chip2.style.background = mixHex(th.accent, th.panel, 0.78); chip2.style.color = th.accent;
   const dot = el('span', 'tb-sample-dot'); dot.style.background = th.accent;
-  row.append(btn, chip, dot);
-  card.append(head, body, row);
+  row.append(btn, chip1, chip2, dot);
+
+  // row 2: an input field + a sample contacted cell
+  const row2 = el('div', 'tb-sample-row');
+  const field = el('div', 'tb-sample-field', 'Søk…');
+  field.style.background = th.panel; field.style.color = th.muted;
+  field.style.border = '1px solid ' + th.lineStrong; field.style.borderRadius = radSm + 'px';
+  const cell = el('span', 'tb-sample-cell');
+  cell.style.background = mixHex('#16a34a', th.panel, 0.78); cell.style.color = '#16a34a';
+  cell.style.borderRadius = Math.max(2, Math.round(rad * 0.45)) + 'px';
+  cell.innerHTML = CHECK_SVG;
+  row2.append(field, cell);
+
+  card.append(head, body, row, row2);
   host.appendChild(card);
 }
 
@@ -2064,7 +2114,9 @@ function openThemeBuilder(existing) {
   const editing = !!existing;
   // working values — seed from existing (edit) or sane defaults (new)
   let name = editing ? existing.name : '';
-  let bg = editing ? existing.bg : '#f5f6f8';
+  let bg = editing ? existing.bg : '#eceef2';
+  // Flate = the card/surface colour, picked separately from the window bg.
+  let flate = editing ? (existing.panel || '#ffffff') : '#ffffff';
   let ink = editing ? existing.ink : '#1b2230';
   let accent = editing ? existing.accent : '#4f46e5';
   let serif = editing ? existing.head === HEAD_SERIF : false;
@@ -2083,9 +2135,9 @@ function openThemeBuilder(existing) {
 
   // sample (declared early so colour wells can repaint it live)
   const sample = el('div');
-  const repaint = () => renderThemeSample(sample, deriveTheme({ bg, ink, accent, serif, radius }));
+  const repaint = () => renderThemeSample(sample, deriveTheme({ bg, flate, ink, accent, serif, radius }));
 
-  // three colour wells
+  // four colour wells: window Bakgrunn + card Flate + Tekst + Aksent
   const colorsRow = el('div', 'tb-colors');
   const mkWell = (label, get, set) => {
     const f = el('div', 'tb-field tb-colorfield');
@@ -2101,6 +2153,7 @@ function openThemeBuilder(existing) {
   };
   colorsRow.append(
     mkWell('Bakgrunn', () => bg, (v) => bg = v),
+    mkWell('Flate', () => flate, (v) => flate = v),
     mkWell('Tekst', () => ink, (v) => ink = v),
     mkWell('Aksent', () => accent, (v) => accent = v),
   );
@@ -2152,7 +2205,7 @@ function openThemeBuilder(existing) {
 
   save.addEventListener('click', () => {
     const finalName = (nameInput.value.trim() || 'Eget tema').slice(0, 40);
-    const palette = deriveTheme({ bg, ink, accent, serif, radius });
+    const palette = deriveTheme({ bg, flate, ink, accent, serif, radius });
     if (editing) {
       // update in place
       const i = state.customThemes.findIndex(x => x.key === existing.key);
@@ -2345,7 +2398,7 @@ function buildFieldStyleGrid(panel) {
     const sampleWrap = el('div', 'btn-style-sample');
     // a real .field text input — shows its own variant via the wrapper attr
     const inp = document.createElement('input');
-    inp.className = 'field'; inp.type = 'text'; inp.placeholder = 'Skriv her…';
+    inp.className = 'field'; inp.type = 'text'; inp.placeholder = 'Søk…';
     inp.tabIndex = -1;
     sampleWrap.appendChild(inp);
     const meta = el('div', 'btn-style-meta');
