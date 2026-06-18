@@ -43,6 +43,7 @@ function addDays(s, n) {
 // Only the handful we actually use. Path data copied from lucide.dev (ISC).
 // =====================================================================
 const LUCIDE = {
+  'home': '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
   'grid': '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
   'check-square': '<path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
   'pen-line': '<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/>',
@@ -176,7 +177,7 @@ function defaultSettings() {
 function defaultState() {
   return {
     version: 2,
-    view: 'oversikt',
+    view: 'hjem',
     year: new Date().getFullYear(),
     contacts: [],          // [{ id, initials }]
     contacted: {},         // { contactId: { [year]: [bool x12] } }
@@ -197,7 +198,7 @@ function normalize(s) {
     : Array.isArray(s.todos) ? s.todos : [];
   return {
     version: 2,
-    view: typeof s.view === 'string' ? s.view : 'oversikt',
+    view: typeof s.view === 'string' ? s.view : 'hjem',
     year: Number.isInteger(s.year) ? s.year : d.year,
     contacts: contacts.filter(c => c && c.id).map(c => ({ id: c.id, initials: String(c.initials || '').slice(0, 6) })),
     contacted: (s.contacted && typeof s.contacted === 'object') ? s.contacted : {},
@@ -981,13 +982,16 @@ function agendaEntries() {
   state.referater.forEach(r => { if (!r.done && r.date) out.push({ kind: 'ref', date: r.date, ref: r }); });
   return out;
 }
+// Re-render every agenda-driven surface (kalender + the Hjem "I dag" block) so
+// quick-actions behave identically no matter which view the card lives on.
+function refreshAgendaViews() { renderKalender(); renderHjem(); renderBadges(); }
 function agendaCardEl(entry) {
   const { kind, ref: it } = entry;
   const row = el('div', 'item' + (kind === 'ref' ? ' ref' : ' prio-' + it.priority) + (it.id === pendingEnterId ? ' entering' : ''));
   const cb = buildCheckbox({ checked: false, onChange: () => {
     it.done = true; it.doneAt = Date.now();
     scheduleSave();
-    animateOut(row, renderKalender);
+    animateOut(row, refreshAgendaViews);
   } });
   cb.el.setAttribute('aria-label', kind === 'ref' ? 'Marker som skrevet' : 'Marker som fullført');
 
@@ -1004,7 +1008,7 @@ function agendaCardEl(entry) {
   const pc = personChip(it.contactId); if (pc) meta.appendChild(pc);
   main.appendChild(meta);
 
-  const setDate = (v) => { if (kind === 'ref') it.date = v; else it.due = v; renderKalender(); scheduleSave(); };
+  const setDate = (v) => { if (kind === 'ref') it.date = v; else it.due = v; refreshAgendaViews(); scheduleSave(); };
   const acts = el('div', 'item-acts');
   const today = el('button', 'item-act'); today.innerHTML = icon('calendar');
   today.setAttribute('aria-label', 'Sett til i dag'); today.dataset.tip = 'I dag';
@@ -1047,6 +1051,108 @@ function renderKalender() {
 }
 
 // =====================================================================
+// HJEM (dashboard / landing) — a polished at-a-glance front page:
+// greeting + date, a row of stat tiles computed from the REAL current
+// month/year, today's (and overdue) agenda reusing the kalender card
+// builder, and quick-link shortcuts. Recomputed every time it renders.
+// =====================================================================
+function greetingFor(hour) {
+  if (hour < 12) return 'God morgen';
+  if (hour < 18) return 'God dag';
+  return 'God kveld';
+}
+function capitalizeFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+// One stat tile: a big number (optionally tinted) + label + optional subline.
+function statTile({ value, label, sub, tone }) {
+  const card = el('div', 'stat-tile');
+  const num = el('div', 'stat-num' + (tone ? ' ' + tone : ''), String(value));
+  card.appendChild(num);
+  card.appendChild(el('div', 'stat-label', label));
+  if (sub != null) card.appendChild(el('div', 'stat-sub', sub));
+  return card;
+}
+function renderHjem() {
+  const greetEl = document.getElementById('hjemGreeting');
+  const dateEl = document.getElementById('hjemDate');
+  const statsEl = document.getElementById('hjemStats');
+  const todayEl = document.getElementById('hjemToday');
+  const shortEl = document.getElementById('hjemShortcuts');
+  if (!greetEl || !statsEl || !todayEl) return;
+
+  const now = new Date();
+  greetEl.textContent = greetingFor(now.getHours());
+  const ds = now.toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  dateEl.textContent = capitalizeFirst(ds);
+
+  // --- stats (real current month/year) ---
+  const curY = now.getFullYear();
+  const curM = now.getMonth();
+  const today = todayStr();
+  const total = state.contacts.length;
+  const contactedN = state.contacts.reduce((a, c) => a + (cellGet(c.id, curY, curM) ? 1 : 0), 0);
+  const contactedPct = total ? Math.round((contactedN / total) * 100) : 0;
+
+  const overdueN = state.tasks.filter(t => !t.done && isOverdue(t.due)).length
+    + state.referater.filter(r => !r.done && isOverdue(r.date)).length;
+  const todayN = state.tasks.filter(t => !t.done && t.due === today).length
+    + state.referater.filter(r => !r.done && r.date === today).length;
+  const weekEnd = addDays(today, 6);
+  const inWeek = (d) => !!d && d >= today && d <= weekEnd;
+  const weekN = state.tasks.filter(t => !t.done && inWeek(t.due)).length
+    + state.referater.filter(r => !r.done && inWeek(r.date)).length;
+
+  statsEl.textContent = '';
+  statsEl.appendChild(statTile({
+    value: contactedPct + '%', label: 'Kontaktet denne måneden',
+    sub: contactedN + '/' + total,
+  }));
+  statsEl.appendChild(statTile({
+    value: overdueN, label: 'Forfalt', tone: overdueN > 0 ? 'danger' : null,
+    sub: overdueN === 1 ? 'oppgave' : 'oppgaver',
+  }));
+  statsEl.appendChild(statTile({
+    value: todayN, label: 'I dag', tone: todayN > 0 ? 'accent' : null,
+    sub: todayN === 1 ? 'oppgave' : 'oppgaver',
+  }));
+  statsEl.appendChild(statTile({
+    value: weekN, label: 'Denne uken',
+    sub: weekN === 1 ? 'oppgave' : 'oppgaver',
+  }));
+
+  // --- "I dag" agenda (today + overdue), reusing the kalender card builder ---
+  todayEl.textContent = '';
+  const due = agendaEntries()
+    .filter(e => e.date <= today)            // overdue + today
+    .sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      const pr = (e) => e.kind === 'task' ? PRIO_RANK[e.ref.priority] : 1;
+      return pr(a) - pr(b);
+    });
+  if (!due.length) {
+    todayEl.appendChild(el('div', 'list-empty', 'Ingenting står på planen i dag.'));
+  } else {
+    due.forEach(e => todayEl.appendChild(agendaCardEl(e)));
+  }
+
+  // --- shortcuts ---
+  if (shortEl) {
+    shortEl.textContent = '';
+    [
+      { nav: 'tasks', icon: 'check-square', label: 'Gjøremål' },
+      { nav: 'referat', icon: 'pen-line', label: 'Referat' },
+      { nav: 'kalender', icon: 'calendar', label: 'Kalender' },
+      { nav: 'oversikt', icon: 'grid', label: 'Oversikt' },
+    ].forEach(s => {
+      const b = el('button', 'shortcut'); b.type = 'button';
+      const i = el('span', 'ic'); i.innerHTML = icon(s.icon);
+      b.append(i, el('span', null, s.label));
+      b.addEventListener('click', () => setView(s.nav));
+      shortEl.appendChild(b);
+    });
+  }
+}
+
+// =====================================================================
 // nav / badges / year
 // =====================================================================
 function renderBadges() {
@@ -1061,6 +1167,7 @@ function setView(v) {
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.dataset.view === v));
   if (v === 'designlab' && !labBuilt) renderDesignLab();
   if (v === 'kalender') renderKalender();
+  if (v === 'hjem') renderHjem();
   scheduleSave();
 }
 function renderYear() { document.getElementById('yearLabel').textContent = String(state.year); }
@@ -1760,12 +1867,12 @@ function renderDesignLab() {
 // =====================================================================
 function renderAll() {
   applySettings();
-  renderYear(); renderGrid(); renderTasks(); renderReferat(); renderKalender();
+  renderYear(); renderGrid(); renderTasks(); renderReferat(); renderKalender(); renderHjem();
   renderSettings();
   document.getElementById('summary').value = state.summary;
   if (labBuilt || state.view === 'designlab') renderDesignLab();
-  // Notater is hidden for now — never land on it
-  setView((!state.view || state.view === 'notes') ? 'oversikt' : state.view);
+  // Notater is hidden for now — never land on it; a missing/notes view → Hjem.
+  setView((!state.view || state.view === 'notes') ? 'hjem' : state.view);
 }
 
 // =====================================================================

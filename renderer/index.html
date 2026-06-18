@@ -37,7 +37,8 @@
       </div>
 
       <div class="navlist">
-        <button class="nav-item active" data-nav="oversikt"><span class="ni-ic" data-icon="grid"></span><span class="ni-label">Oversikt</span></button>
+        <button class="nav-item active" data-nav="hjem"><span class="ni-ic" data-icon="home"></span><span class="ni-label">Hjem</span></button>
+        <button class="nav-item" data-nav="oversikt"><span class="ni-ic" data-icon="grid"></span><span class="ni-label">Oversikt</span></button>
         <button class="nav-item" data-nav="tasks"><span class="ni-ic" data-icon="check-square"></span><span class="ni-label">Gjøremål</span><span class="nav-badge" id="navTasks"></span></button>
         <button class="nav-item" data-nav="referat"><span class="ni-ic" data-icon="pen-line"></span><span class="ni-label">Referat</span><span class="nav-badge" id="navReferat"></span></button>
         <button class="nav-item" data-nav="kalender"><span class="ni-ic" data-icon="calendar"></span><span class="ni-label">Kalender</span></button>
@@ -52,8 +53,26 @@
     </nav>
 
     <main class="content">
+      <!-- ---------- Hjem (dashboard / landing) ---------- -->
+      <section class="view active" data-view="hjem">
+        <div class="view-head">
+          <h1 id="hjemGreeting">Hei</h1>
+          <p class="view-sub" id="hjemDate"></p>
+        </div>
+        <div id="hjemStats" class="stat-row"></div>
+        <div class="hjem-grid">
+          <div class="hjem-col">
+            <div class="hjem-block-head">
+              <h2 class="hjem-h2">I dag</h2>
+            </div>
+            <div id="hjemToday" class="item-list"></div>
+          </div>
+        </div>
+        <div class="hjem-shortcuts" id="hjemShortcuts"></div>
+      </section>
+
       <!-- ---------- Oversikt (month grid) ---------- -->
-      <section class="view active" data-view="oversikt">
+      <section class="view" data-view="oversikt">
         <div class="view-head">
           <h1>Kontakt-oversikt</h1>
           <div class="head-tools">

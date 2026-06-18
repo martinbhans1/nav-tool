@@ -965,6 +965,56 @@ textarea.field {
 [data-theme="estetisk"] .agenda-label { font-family: var(--font-head); letter-spacing: .04em; text-transform: none; }
 
 /* =====================================================================
+   HJEM (dashboard / landing) — greeting, stat tiles, today's agenda,
+   quick-link shortcuts. All token-driven; adapts to density + themes.
+   ===================================================================== */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-6);
+}
+.stat-tile {
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  box-shadow: var(--elev-1);
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  display: flex; flex-direction: column; gap: 2px;
+  transition: box-shadow var(--t-base) var(--ease-out), transform var(--t-base) var(--ease-out);
+}
+.stat-tile:hover { box-shadow: var(--elev-2); }
+.stat-num {
+  font-family: var(--font-head);
+  font-size: calc(var(--fs-xl) * 1.45);
+  font-weight: var(--fw-bold);
+  line-height: 1.05; letter-spacing: -.02em;
+  color: var(--ink);
+}
+.stat-num.danger { color: var(--danger); }
+.stat-num.accent { color: var(--accent); }
+.stat-label { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); margin-top: var(--sp-1); }
+.stat-sub { font-size: var(--fs-xs); color: var(--faint); }
+
+.hjem-grid { display: flex; flex-direction: column; gap: var(--sp-5); }
+.hjem-block-head { margin-bottom: var(--sp-3); }
+.hjem-h2 { font-family: var(--font-head); font-size: var(--fs-lg); font-weight: var(--fw-semibold); letter-spacing: -.01em; }
+
+.hjem-shortcuts { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-6); }
+.shortcut {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  height: var(--control-h); padding: 0 var(--sp-4);
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  color: var(--muted); font: inherit; font-size: var(--fs-base); font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: color var(--t-base) var(--ease-out), border-color var(--t-base) var(--ease-out), background var(--t-base) var(--ease-out);
+}
+.shortcut:hover { color: var(--accent); border-color: var(--accent-tint); background: var(--accent-soft); }
+.shortcut .ic svg { width: var(--icon-sm); height: var(--icon-sm); }
+
+/* =====================================================================
    EMPTY STATE
    ===================================================================== */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: var(--sp-10) var(--sp-5); color: var(--muted); gap: var(--sp-3); }
