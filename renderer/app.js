@@ -70,6 +70,7 @@ const LUCIDE = {
   'info': '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   'alert-triangle': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   'edit': '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
+  'search': '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
 };
 function icon(name) {
   const p = LUCIDE[name];
@@ -756,6 +757,9 @@ function renderGrid() {
     const nameTd = el('td', 'name-col');
     const wrap = el('div', 'person-cell');
     const ini = el('span', 'person-initials', p.initials);
+    ini.dataset.tip = 'Vis detaljer'; ini.setAttribute('role', 'button'); ini.tabIndex = 0;
+    ini.addEventListener('click', () => openContactDetail(p.id));
+    ini.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openContactDetail(p.id); } });
     const del = el('button', 'row-del'); del.innerHTML = icon('x'); del.setAttribute('aria-label', 'Fjern ' + p.initials);
     del.addEventListener('click', () => deleteContact(p.id));
     wrap.append(ini, del); nameTd.appendChild(wrap); tr.appendChild(nameTd);
@@ -826,9 +830,12 @@ function renderFoot() {
 function personChip(contactId) {
   const who = initialsFor(contactId);
   if (!who) return null;
-  const c = el('span', 'chip person');
+  const c = el('span', 'chip person clickable');
   const i = el('span', 'ic'); i.innerHTML = icon('user'); i.querySelector('svg').setAttribute('stroke-width', '2');
   c.append(i, el('span', null, who));
+  c.dataset.tip = 'Vis detaljer'; c.setAttribute('role', 'button'); c.tabIndex = 0;
+  c.addEventListener('click', (e) => { e.stopPropagation(); openContactDetail(contactId); });
+  c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openContactDetail(contactId); } });
   return c;
 }
 function dueChip(due) {
@@ -836,6 +843,188 @@ function dueChip(due) {
   const c = el('span', 'chip due' + (isOverdue(due) ? ' overdue' : ''));
   c.textContent = (isOverdue(due) ? 'Forfalt · ' : '') + fmtDate(due);
   return c;
+}
+
+// =====================================================================
+// KONTAKT-DETALJ — a modal showing everything about one contact: this
+// year's month-by-month contact history (clickable to toggle), their
+// linked gjøremål and referater, plus quick-add + delete actions. The
+// body re-renders in place after every mutation so counts stay current.
+// Public API: openContactDetail(contactId) — also the jump target for a
+// future search feature (open a person straight from a result).
+// =====================================================================
+function openContactDetail(contactId) {
+  const c = contactById(contactId);
+  if (!c) return;
+
+  const body = el('div', 'cd');
+  const m = openModal({ title: c.initials, bodyNode: body, width: 520 });
+
+  // a small titled section: subheader + a content node
+  function section(title, count, node) {
+    const sec = el('div', 'cd-section');
+    const head = el('div', 'cd-subhead');
+    head.appendChild(el('span', 'cd-subhead-title', title));
+    if (count != null) head.appendChild(el('span', 'cd-count', String(count)));
+    sec.append(head, node);
+    return sec;
+  }
+
+  function rebuild() {
+    body.textContent = '';
+
+    // --- header: avatar + initials title ---
+    const header = el('div', 'cd-header');
+    const av = el('span', 'avatar lg', c.initials);
+    const meta = el('div', 'cd-header-meta');
+    meta.appendChild(el('div', 'cd-header-title', c.initials));
+    meta.appendChild(el('div', 'cd-header-sub', 'Kontakt'));
+    header.append(av, meta);
+    body.appendChild(header);
+
+    // --- kontakt-historikk: 12 month pills + year % ---
+    const histNode = el('div', 'cd-hist');
+    const pills = el('div', 'cd-pills');
+    let n = 0;
+    for (let mo = 0; mo < 12; mo++) {
+      const on = cellGet(c.id, state.year, mo);
+      if (on) n++;
+      const pill = el('button', 'cd-pill' + (on ? ' on' : ''));
+      pill.type = 'button';
+      pill.textContent = MONTHS[mo];
+      pill.setAttribute('aria-pressed', on ? 'true' : 'false');
+      pill.dataset.tip = (on ? 'Fjern ' : 'Merk ') + MONTHS_FULL[mo];
+      pill.addEventListener('click', () => {
+        cellSet(c.id, state.year, mo, !cellGet(c.id, state.year, mo));
+        renderGrid();        // keep the Oversikt grid in sync
+        scheduleSave();
+        rebuild();           // refresh pills + percentage
+      });
+      pills.appendChild(pill);
+    }
+    const pct = Math.round((n / 12) * 100);
+    const summary = el('div', 'cd-hist-summary');
+    summary.appendChild(el('span', 'cd-hist-pct', pct + '%'));
+    summary.appendChild(el('span', 'cd-hist-sub', n + '/12 måneder · ' + state.year));
+    histNode.append(pills, summary);
+    body.appendChild(section('Kontakt-historikk', null, histNode));
+
+    // --- gjøremål (active first, then done) ---
+    const tasks = state.tasks.filter(t => t.contactId === c.id);
+    const tActive = tasks.filter(t => !t.done).sort((a, b) => {
+      if (!!a.due !== !!b.due) return a.due ? -1 : 1;
+      if (a.due && b.due && a.due !== b.due) return a.due < b.due ? -1 : 1;
+      return PRIO_RANK[a.priority] - PRIO_RANK[b.priority];
+    });
+    const tDone = tasks.filter(t => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+    const tList = el('div', 'item-list cd-list');
+    if (!tasks.length) tList.appendChild(el('div', 'list-empty', 'Ingen gjøremål.'));
+    else [...tActive, ...tDone].forEach(t => tList.appendChild(cdTaskEl(t, rebuild)));
+    body.appendChild(section('Gjøremål', tasks.length, tList));
+
+    // --- referat ---
+    const refs = state.referater.filter(r => r.contactId === c.id);
+    const rActive = refs.filter(r => !r.done).sort((a, b) => {
+      if (!!a.date !== !!b.date) return a.date ? -1 : 1;
+      if (a.date && b.date && a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+    const rDone = refs.filter(r => r.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+    const rList = el('div', 'item-list cd-list');
+    if (!refs.length) rList.appendChild(el('div', 'list-empty', 'Ingen referat-påminnelser.'));
+    else [...rActive, ...rDone].forEach(r => rList.appendChild(cdReferatEl(r, rebuild)));
+    body.appendChild(section('Referat', refs.length, rList));
+
+    // --- quick-add (title input + add) for task / referat, linked to this contact ---
+    body.appendChild(cdQuickAdd(c.id, rebuild));
+
+    // --- danger: remove contact (reuses the existing confirm + cleanup flow) ---
+    const danger = el('div', 'cd-danger');
+    const rm = button({ label: 'Fjern kontakt', variant: 'danger', icon: 'trash', sm: true,
+      onClick: () => { m.close(); deleteContact(c.id); } });
+    danger.appendChild(rm);
+    body.appendChild(danger);
+  }
+
+  rebuild();
+}
+
+// A compact task card for the detail modal: same look as the Gjøremål view,
+// but mutations re-render the modal (via `refresh`) instead of the main list.
+function cdTaskEl(t, refresh) {
+  const row = el('div', 'item prio-' + t.priority + (t.done ? ' is-done' : ''));
+  const cb = buildCheckbox({ checked: t.done, onChange: (v) => {
+    t.done = v; t.doneAt = t.done ? Date.now() : null;
+    renderTasks(); scheduleSave(); refresh();
+  } });
+  cb.el.setAttribute('aria-label', 'Marker som fullført');
+  const main = el('div', 'item-main');
+  main.appendChild(el('div', 'item-title', t.title));
+  if (t.note) main.appendChild(el('div', 'item-note', t.note));
+  const meta = el('div', 'item-meta');
+  const dc = dueChip(t.due); if (dc) meta.appendChild(dc);
+  if (t.priority !== 'normal') meta.appendChild(el('span', 'chip prio-' + t.priority, PRIO_LABEL[t.priority]));
+  if (meta.children.length) main.appendChild(meta);
+  row.append(cb.el, main);
+  return row;
+}
+
+// A compact referat card for the detail modal.
+function cdReferatEl(r, refresh) {
+  const row = el('div', 'item ref' + (r.done ? ' is-done' : ''));
+  const cb = buildCheckbox({ checked: r.done, onChange: (v) => {
+    r.done = v; r.doneAt = r.done ? Date.now() : null;
+    renderReferat(); scheduleSave(); refresh();
+  } });
+  cb.el.setAttribute('aria-label', 'Marker som skrevet');
+  const main = el('div', 'item-main');
+  main.appendChild(el('div', 'item-title', r.title));
+  if (r.note) main.appendChild(el('div', 'item-note', r.note));
+  const meta = el('div', 'item-meta');
+  if (r.date) meta.appendChild(el('span', 'chip due', fmtDate(r.date)));
+  if (meta.children.length) main.appendChild(meta);
+  row.append(cb.el, main);
+  return row;
+}
+
+// Inline mini quick-add: a title field + two add buttons that create a task or
+// a referat already linked to this contactId (due/date defaults to today), then
+// refresh the modal. Self-contained — no navigation, native-free.
+function cdQuickAdd(contactId, refresh) {
+  const wrap = el('div', 'cd-quickadd');
+  const input = document.createElement('input');
+  input.className = 'field'; input.type = 'text'; input.maxLength = 200;
+  input.placeholder = 'Ny tittel…';
+  const addTask = () => {
+    const title = input.value.trim();
+    if (!title) { input.focus(); return; }
+    state.tasks.push({ id: uid(), title, note: '', due: todayStr(), priority: 'normal',
+      contactId, done: false, createdAt: Date.now(), doneAt: null });
+    input.value = ''; renderTasks(); scheduleSave(); refresh();
+  };
+  const addRef = () => {
+    const title = input.value.trim();
+    if (!title) { input.focus(); return; }
+    state.referater.push({ id: uid(), title, note: '', date: todayStr(),
+      contactId, done: false, createdAt: Date.now(), doneAt: null });
+    input.value = ''; renderReferat(); scheduleSave(); refresh();
+  };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTask(); } });
+  const acts = el('div', 'cd-quickadd-acts');
+  acts.append(
+    button({ label: 'Gjøremål', variant: 'secondary', icon: 'plus', sm: true, onClick: addTask }),
+    button({ label: 'Referat', variant: 'secondary', icon: 'plus', sm: true, onClick: addRef }),
+  );
+  wrap.append(input, acts);
+  return section_quickadd(wrap);
+}
+// tiny wrapper so quick-add gets the same subheader treatment as a section
+function section_quickadd(node) {
+  const sec = el('div', 'cd-section');
+  const head = el('div', 'cd-subhead');
+  head.appendChild(el('span', 'cd-subhead-title', 'Legg til'));
+  sec.append(head, node);
+  return sec;
 }
 
 // =====================================================================
@@ -867,6 +1056,7 @@ function animateOut(row, done) {
 // =====================================================================
 function taskEl(t) {
   const row = el('div', 'item prio-' + t.priority + (t.done ? ' is-done' : '') + (t.id === pendingEnterId ? ' entering' : ''));
+  row.dataset.id = t.id;
   const cb = buildCheckbox({ checked: t.done, onChange: (v) => {
     t.done = v; t.doneAt = t.done ? Date.now() : null;
     pendingEnterId = t.id;            // play "appear" in the list it moves to
@@ -917,6 +1107,7 @@ function renderTasks() {
 // =====================================================================
 function referatEl(r) {
   const row = el('div', 'item ref' + (r.done ? ' is-done' : '') + (r.id === pendingEnterId ? ' entering' : ''));
+  row.dataset.id = r.id;
   const cb = buildCheckbox({ checked: r.done, onChange: (v) => {
     r.done = v; r.doneAt = r.done ? Date.now() : null;
     pendingEnterId = r.id;
@@ -1174,10 +1365,194 @@ function renderYear() { document.getElementById('yearLabel').textContent = Strin
 function setYear(delta) { state.year += delta; renderYear(); renderGrid(); scheduleSave(); }
 
 // =====================================================================
+// SØK — command palette (Ctrl/Cmd+K). A top-anchored Spotlight-style
+// overlay to find and jump to any contact, gjøremål or referat. Built
+// once on first open and toggled thereafter (single instance → no
+// stacked listeners). Activating a result closes the palette and jumps:
+// contact → openContactDetail; task/referat → switch view + flash card.
+// =====================================================================
+let cmdk = null;            // the single palette instance { overlay, open, close, isOpen }
+
+// fold accents/diacritics so "ø/å/é" match loosely, then lowercase.
+function searchFold(s) {
+  return (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// Build the full result list for a query. Empty query → []. Each result:
+// { kind:'contact'|'task'|'ref', icon, title, ctx, run }.
+function cmdkSearch(query) {
+  const q = searchFold(query).trim();
+  if (!q) return [];
+  const PER_GROUP = 6;
+  const groups = [];
+
+  const matchContacts = state.contacts.filter(c => searchFold(c.initials).includes(q));
+  const matchTasks = state.tasks.filter(t => searchFold(t.title).includes(q) || searchFold(t.note).includes(q));
+  const matchRefs = state.referater.filter(r => searchFold(r.title).includes(q) || searchFold(r.note).includes(q));
+
+  const ctxFor = (date, contactId) => {
+    const bits = [];
+    if (date) bits.push(fmtDate(date));
+    const who = initialsFor(contactId);
+    if (who) bits.push(who);
+    return bits.join(' · ');
+  };
+
+  if (matchContacts.length) {
+    groups.push({ label: 'Personer', total: matchContacts.length, items: matchContacts.slice(0, PER_GROUP).map(c => ({
+      kind: 'contact', icon: 'user', title: c.initials, ctx: '',
+      run: () => { cmdkClose(); openContactDetail(c.id); },
+    })) });
+  }
+  if (matchTasks.length) {
+    groups.push({ label: 'Gjøremål', total: matchTasks.length, items: matchTasks.slice(0, PER_GROUP).map(t => ({
+      kind: 'task', icon: 'check-square', title: t.title, ctx: ctxFor(t.due, t.contactId),
+      run: () => { cmdkClose(); setView('tasks'); flashItem(t.id); },
+    })) });
+  }
+  if (matchRefs.length) {
+    groups.push({ label: 'Referat', total: matchRefs.length, items: matchRefs.slice(0, PER_GROUP).map(r => ({
+      kind: 'ref', icon: 'pen-line', title: r.title, ctx: ctxFor(r.date, r.contactId),
+      run: () => { cmdkClose(); setView('referat'); flashItem(r.id); },
+    })) });
+  }
+  return groups;
+}
+
+// Scroll to + briefly highlight the .item card with a given data-id. Runs on the
+// next tick (lets the target view's render settle), then applies synchronously so
+// it works even when rAF is throttled (e.g. a backgrounded window in tests).
+function flashItem(id) {
+  setTimeout(() => {
+    const card = document.querySelector('.item[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+    if (!card) return;
+    try { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+    card.classList.remove('flash');
+    void card.offsetWidth;       // restart the animation if already flashing
+    card.classList.add('flash');
+    setTimeout(() => card.classList.remove('flash'), 1300);
+  }, 0);
+}
+
+function buildCmdk() {
+  const overlay = el('div', 'cmdk-overlay');
+  const panel = el('div', 'cmdk');
+
+  const top = el('div', 'cmdk-top');
+  const sIc = el('span', 'cmdk-search-ic'); sIc.innerHTML = icon('search');
+  const input = document.createElement('input');
+  input.className = 'field cmdk-input'; input.type = 'text'; input.autocomplete = 'off'; input.spellcheck = false;
+  input.placeholder = 'Søk etter person, gjøremål eller referat…';
+  input.setAttribute('aria-label', 'Søk');
+  top.append(sIc, input);
+
+  const results = el('div', 'cmdk-results');
+
+  const hint = el('div', 'cmdk-hint');
+  const mkKey = (label) => el('kbd', 'cmdk-kbd', label);
+  const seg = (keys, txt) => { const s = el('span', 'cmdk-hint-seg'); keys.forEach(k => s.appendChild(mkKey(k))); s.appendChild(el('span', 'cmdk-hint-txt', txt)); return s; };
+  hint.append(seg(['↑', '↓'], 'flytt'), seg(['↵'], 'åpne'), seg(['Esc'], 'lukke'));
+
+  panel.append(top, results, hint);
+  overlay.appendChild(panel);
+
+  // flat list of selectable rows, with their result objects, for kb nav.
+  let flat = [];
+  let active = -1;
+
+  const setActive = (i) => {
+    if (!flat.length) { active = -1; return; }
+    active = (i + flat.length) % flat.length;
+    flat.forEach((f, idx) => f.row.classList.toggle('active', idx === active));
+    const row = flat[active].row;
+    if (row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+  };
+
+  const renderResults = () => {
+    results.textContent = '';
+    flat = [];
+    const q = input.value;
+    if (!q.trim()) {
+      results.appendChild(el('div', 'cmdk-empty', 'Skriv for å søke i personer, gjøremål og referat.'));
+      active = -1;
+      return;
+    }
+    const groups = cmdkSearch(q);
+    if (!groups.length) {
+      results.appendChild(el('div', 'cmdk-empty', 'Ingen treff'));
+      active = -1;
+      return;
+    }
+    groups.forEach(g => {
+      results.appendChild(el('div', 'cmdk-group-label', g.label));
+      g.items.forEach(it => {
+        const row = el('div', 'cmdk-item');
+        row.setAttribute('role', 'option');
+        const ic = el('span', 'cmdk-item-ic'); ic.innerHTML = icon(it.icon);
+        const txt = el('div', 'cmdk-item-text');
+        txt.appendChild(el('span', 'cmdk-item-title', it.title));
+        if (it.ctx) txt.appendChild(el('span', 'cmdk-item-ctx', it.ctx));
+        row.append(ic, txt);
+        const myIndex = flat.length;
+        row.addEventListener('mousemove', () => setActive(myIndex));
+        row.addEventListener('click', () => it.run());
+        results.appendChild(row);
+        flat.push({ row, result: it });
+      });
+      if (g.total > g.items.length) {
+        results.appendChild(el('div', 'cmdk-more', '+' + (g.total - g.items.length) + ' flere'));
+      }
+    });
+    setActive(0);
+  };
+
+  input.addEventListener('input', renderResults);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(active + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(active - 1); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (active >= 0 && flat[active]) flat[active].result.run(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cmdkClose(); }
+  });
+  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cmdkClose(); });
+
+  return {
+    overlay, input,
+    reset() { input.value = ''; renderResults(); },
+    focus() { input.focus(); input.select(); },
+  };
+}
+
+function cmdkOpen() {
+  if (!cmdk) cmdk = buildCmdk();
+  if (cmdk.overlay.isConnected) { cmdk.focus(); return; }
+  modalMount.appendChild(cmdk.overlay);
+  cmdk.reset();
+  // focus after mount so the input is reliably focusable
+  requestAnimationFrame(() => cmdk.focus());
+}
+function cmdkClose() {
+  if (cmdk && cmdk.overlay.isConnected) cmdk.overlay.remove();
+}
+function cmdkToggle() { (cmdk && cmdk.overlay.isConnected) ? cmdkClose() : cmdkOpen(); }
+
+// single global shortcut listener (bound once in bind()).
+function bindCmdkShortcut() {
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      cmdkToggle();
+    }
+  });
+}
+
+// =====================================================================
 // wiring
 // =====================================================================
 function bind() {
   document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => setView(n.dataset.nav)));
+  bindCmdkShortcut();
+  const searchBtn = document.getElementById('cmdkTrigger');
+  if (searchBtn) searchBtn.addEventListener('click', cmdkOpen);
 
   const contactItems = () => state.contacts.map(c => ({ value: c.id, label: c.initials }));
   taskContactCombo = buildCombo(document.getElementById('taskContactCombo'), { getItems: contactItems });

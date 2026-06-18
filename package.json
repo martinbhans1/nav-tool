@@ -1,6 +1,6 @@
 {
   "name": "nav-tool",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Lokalt oppfølgingsverktøy — kontakt-oversikt per måned, gjøremål og notater. All data ligger lokalt på maskinen.",
   "main": "main.js",
   "author": "",

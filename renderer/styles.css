@@ -1078,6 +1078,55 @@ textarea.field {
 .modal-title { font-family: var(--font-head); font-size: var(--fs-md); font-weight: var(--fw-semibold); }
 .modal-body { padding: var(--sp-2) var(--sp-5) var(--sp-4); color: var(--muted); font-size: var(--fs-base); line-height: 1.5; }
 .modal-foot { display: flex; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--hairline); background: var(--surface-1); }
+/* the detail-modal body can get tall (history + tasks + referater + quick-add)
+   → cap its height and let it scroll internally, keeping the header pinned */
+.cd { max-height: min(72vh, 640px); overflow-y: auto; }
+
+/* =====================================================================
+   KONTAKT-DETALJ (contact-detail modal internals)
+   ===================================================================== */
+.cd { display: flex; flex-direction: column; gap: var(--sp-4); color: var(--ink); }
+.cd-header { display: flex; align-items: center; gap: var(--sp-3); }
+.cd-header-title { font-family: var(--font-head); font-size: var(--fs-md); font-weight: var(--fw-semibold); letter-spacing: .02em; }
+.cd-header-sub { font-size: var(--fs-xs); color: var(--muted); margin-top: 1px; }
+.cd-section { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cd-subhead { display: flex; align-items: center; gap: var(--sp-2); }
+.cd-subhead-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.cd-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 6px; border-radius: var(--r-pill);
+  background: var(--neutral); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 1;
+}
+/* month-pill row: 12 small toggles; contacted ones fill, others stay muted */
+.cd-hist { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cd-pills { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+.cd-pill {
+  height: 30px; padding: 0; border-radius: var(--r-xs); cursor: pointer;
+  border: 1px solid var(--hairline-strong); background: var(--surface-1); color: var(--muted);
+  font-size: 10px; font-weight: var(--fw-semibold); letter-spacing: .01em;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast), transform .05s;
+}
+.cd-pill:hover { border-color: var(--accent); color: var(--ink); }
+.cd-pill:active { transform: scale(.92); }
+.cd-pill.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+[data-contacted="accent"] .cd-pill.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.cd-hist-summary { display: flex; align-items: baseline; gap: var(--sp-2); }
+.cd-hist-pct { font-size: var(--fs-md); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; color: var(--ink); }
+.cd-hist-sub { font-size: var(--fs-xs); color: var(--muted); }
+/* per-person card lists reuse .item, but the cards aren't hover-deletable here */
+.cd-list .item { box-shadow: none; }
+.cd-list .item:hover { box-shadow: var(--elev-1); }
+.cd-quickadd { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
+.cd-quickadd .field { flex: 1; min-width: 160px; }
+.cd-quickadd-acts { display: flex; gap: var(--sp-2); }
+.cd-danger { display: flex; justify-content: flex-end; padding-top: var(--sp-1); }
+/* a clickable person-chip (opens the detail) gets a pointer + subtle hover */
+.chip.person.clickable { cursor: pointer; transition: filter var(--t-fast); }
+.chip.person.clickable:hover { filter: brightness(.96); }
+/* Oversikt initials become an affordance to open the detail */
+.person-initials[role="button"] { cursor: pointer; border-radius: var(--r-xs); padding: 1px 4px; margin: -1px -4px; transition: color var(--t-fast), background var(--t-fast); }
+.person-initials[role="button"]:hover { color: var(--accent); background: var(--accent-soft); }
 
 /* =====================================================================
    MONTH GRID (Oversikt)
@@ -1380,6 +1429,94 @@ body[data-bg="dots"] { background-image:
 /* contacted cells follow the accent instead of green, when chosen */
 [data-contacted="accent"] .cell-btn.on { background: var(--accent); border-color: var(--accent); }
 [data-contacted="accent"] .pct-bar > span { background: var(--accent); }
+
+/* =====================================================================
+   SØK — command palette (Ctrl/Cmd+K)
+   ===================================================================== */
+/* sidebar trigger affordance — sits under the brand, above the navlist */
+.cmdk-trigger {
+  display: flex; align-items: center; gap: var(--sp-2);
+  width: 100%; text-align: left; cursor: pointer; font: inherit;
+  margin-bottom: var(--sp-3);
+  padding: 8px var(--sp-3); border-radius: var(--r-sm);
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-medium);
+  transition: background var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+.cmdk-trigger:hover { background: var(--surface-2); border-color: var(--hairline-strong); color: var(--ink); }
+.cmdk-trigger .ni-ic { display: inline-flex; align-items: center; justify-content: center; width: var(--icon-sm); height: var(--icon-sm); flex-shrink: 0; }
+.cmdk-trigger .ni-ic svg { width: var(--icon-sm); height: var(--icon-sm); }
+.cmdk-trigger-label { flex: 1; min-width: 0; }
+.cmdk-trigger-kbd { display: inline-flex; gap: 2px; }
+.cmdk-trigger-kbd kbd, .cmdk-kbd {
+  font: inherit; font-size: var(--fs-xs); line-height: 1; color: var(--faint);
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  border-radius: var(--r-xs); padding: 2px 5px; min-width: 14px; text-align: center;
+}
+
+.cmdk-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: color-mix(in srgb, #000 42%, transparent);
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 12vh var(--sp-5) var(--sp-5);
+  animation: fadeIn var(--t-fast) var(--ease-out);
+}
+.cmdk {
+  width: 560px; max-width: 100%; max-height: 64vh;
+  display: flex; flex-direction: column;
+  background: var(--surface-3); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r); box-shadow: var(--elev-pop); overflow: hidden;
+  animation: modalIn var(--t-base) var(--ease-spring);
+}
+.cmdk-top {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--hairline);
+}
+.cmdk-search-ic { display: inline-flex; color: var(--faint); flex-shrink: 0; }
+.cmdk-search-ic svg { width: var(--icon); height: var(--icon); }
+.cmdk-input {
+  flex: 1; border: 0 !important; background: transparent !important;
+  box-shadow: none !important; padding: 0 !important; height: auto;
+  font-size: var(--fs-md); color: var(--ink);
+}
+.cmdk-input:focus { box-shadow: none !important; border: 0 !important; }
+.cmdk-results { overflow-y: auto; padding: var(--sp-2); flex: 1; }
+.cmdk-empty { padding: var(--sp-5) var(--sp-3); text-align: center; color: var(--muted); font-size: var(--fs-sm); }
+.cmdk-group-label {
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: .04em;
+  text-transform: uppercase; color: var(--faint);
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+}
+.cmdk-item {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 9px var(--sp-2); border-radius: var(--r-xs); cursor: pointer;
+  color: var(--ink);
+  transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+.cmdk-item.active { background: var(--accent-soft); color: var(--accent); }
+.cmdk-item-ic { display: inline-flex; align-items: center; justify-content: center; width: var(--icon-sm); height: var(--icon-sm); flex-shrink: 0; color: var(--muted); }
+.cmdk-item.active .cmdk-item-ic { color: var(--accent); }
+.cmdk-item-ic svg { width: var(--icon-sm); height: var(--icon-sm); }
+.cmdk-item-text { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; flex: 1; }
+.cmdk-item-title { font-size: var(--fs-base); font-weight: var(--fw-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdk-item-ctx { font-size: var(--fs-xs); color: var(--muted); flex-shrink: 0; }
+.cmdk-item.active .cmdk-item-ctx { color: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
+.cmdk-more { padding: 5px var(--sp-2) var(--sp-2); font-size: var(--fs-xs); color: var(--faint); }
+.cmdk-hint {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4); border-top: 1px solid var(--hairline);
+  background: var(--surface-1); font-size: var(--fs-xs); color: var(--faint);
+}
+.cmdk-hint-seg { display: inline-flex; align-items: center; gap: 5px; }
+.cmdk-hint-txt { color: var(--muted); }
+
+/* brief accent pulse when a search result jumps to a list card */
+.item.flash { animation: itemFlash 1.3s var(--ease-out); }
+@keyframes itemFlash {
+  0%   { box-shadow: 0 0 0 0 var(--accent-soft); background: var(--accent-soft); }
+  15%  { box-shadow: 0 0 0 3px var(--accent-soft); background: var(--accent-soft); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
 
 /* =====================================================================
    utility
