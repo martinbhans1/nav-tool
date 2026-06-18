@@ -130,10 +130,25 @@ const FONTS = [
   { key: 'mono',    label: 'Mono',     stack: '"Cascadia Code", Consolas, "Courier New", ui-monospace, monospace' },
 ];
 const ACCENTS = ['#4f46e5', '#db2777', '#7c3aed', '#2563eb', '#0ea5a4', '#16a34a', '#d97706', '#e11d48', '#0891b2', '#475569'];
+// Button styles — the live, app-wide primary-button "vibe". Keys live in CSS
+// (`[data-btn-style="<key>"] .btn.primary`); labels are Norwegian for the UI.
+// All token-driven (derived from --accent and friends); each defines hover/active.
+const BTN_STYLES = [
+  { key: 'solid',    label: 'Standard',  desc: 'Fylt aksent — appens grunnlook.' },
+  { key: 'lift',     label: 'Løft',      desc: 'Hever seg ved peking.' },
+  { key: 'sharp',    label: 'Skarp',     desc: 'Helt rette hjørner.' },
+  { key: 'pill',     label: 'Pille',     desc: 'Helt avrundet.' },
+  { key: 'soft',     label: 'Myk',       desc: 'Dempet aksent-tone.' },
+  { key: 'outline',  label: 'Omriss',    desc: 'Kantlinje, fylles ved peking.' },
+  { key: 'gradient', label: 'Gradient',  desc: 'Glidende aksent-overgang.' },
+  { key: 'glow',     label: 'Glød',      desc: 'Mykt aksent-skjær.' },
+];
+const BTN_STYLE_KEYS = BTN_STYLES.map(s => s.key);
 
 function defaultSettings() {
   return { theme: 'lys', accent: '', font: 'system', scale: 100, radius: 12,
-           density: 'comfortable', readingSize: 14, background: 'flat', contacted: 'green' };
+           density: 'comfortable', readingSize: 14, background: 'flat', contacted: 'green',
+           btnStyle: 'solid' };
 }
 
 function defaultState() {
@@ -192,6 +207,7 @@ function normalize(s) {
         readingSize: Number.isFinite(si.readingSize) ? clamp(si.readingSize, 12, 18) : def.readingSize,
         background: ['flat', 'gradient', 'dots'].includes(si.background) ? si.background : def.background,
         contacted: ['green', 'accent'].includes(si.contacted) ? si.contacted : def.contacted,
+        btnStyle: BTN_STYLE_KEYS.includes(si.btnStyle) ? si.btnStyle : def.btnStyle,
       };
     })(),
   };
@@ -913,6 +929,100 @@ function renderReferat() {
 }
 
 // =====================================================================
+// KALENDER (agenda) — combines dated, non-done tasks + referater into a
+// single list, grouped into time buckets (overdue → today → … → later).
+// Reuses the .item look + the shared chip/personChip builders.
+// =====================================================================
+const AGENDA_BUCKETS = [
+  { key: 'forfalt', label: 'Forfalt' },
+  { key: 'idag',    label: 'I dag' },
+  { key: 'imorgen', label: 'I morgen' },
+  { key: 'uken',    label: 'Denne uken' },
+  { key: 'senere',  label: 'Senere' },
+];
+// Decide which bucket a 'YYYY-MM-DD' falls in, relative to today.
+function agendaBucket(date) {
+  const today = todayStr();
+  if (date < today) return 'forfalt';
+  if (date === today) return 'idag';
+  const tomorrow = addDays(today, 1);
+  if (date === tomorrow) return 'imorgen';
+  if (date <= addDays(today, 7)) return 'uken';
+  return 'senere';
+}
+// Gather every non-done task (with a due) + referat (with a date) as entries.
+function agendaEntries() {
+  const out = [];
+  state.tasks.forEach(t => { if (!t.done && t.due) out.push({ kind: 'task', date: t.due, ref: t }); });
+  state.referater.forEach(r => { if (!r.done && r.date) out.push({ kind: 'ref', date: r.date, ref: r }); });
+  return out;
+}
+function agendaCardEl(entry) {
+  const { kind, ref: it } = entry;
+  const row = el('div', 'item' + (kind === 'ref' ? ' ref' : ' prio-' + it.priority) + (it.id === pendingEnterId ? ' entering' : ''));
+  const cb = buildCheckbox({ checked: false, onChange: () => {
+    it.done = true; it.doneAt = Date.now();
+    scheduleSave();
+    animateOut(row, renderKalender);
+  } });
+  cb.el.setAttribute('aria-label', kind === 'ref' ? 'Marker som skrevet' : 'Marker som fullført');
+
+  const main = el('div', 'item-main');
+  main.appendChild(el('div', 'item-title', it.title));
+  if (it.note) main.appendChild(el('div', 'item-note', it.note));
+  const meta = el('div', 'item-meta');
+  const typeChip = el('span', 'chip' + (kind === 'ref' ? ' ok' : ' outline'), kind === 'ref' ? 'Referat' : 'Gjøremål');
+  meta.appendChild(typeChip);
+  const dc = el('span', 'chip due' + (isOverdue(entry.date) ? ' overdue' : ''));
+  dc.textContent = (isOverdue(entry.date) ? 'Forfalt · ' : '') + fmtDate(entry.date);
+  meta.appendChild(dc);
+  if (kind === 'task' && it.priority !== 'normal') meta.appendChild(el('span', 'chip prio-' + it.priority, PRIO_LABEL[it.priority]));
+  const pc = personChip(it.contactId); if (pc) meta.appendChild(pc);
+  main.appendChild(meta);
+
+  const setDate = (v) => { if (kind === 'ref') it.date = v; else it.due = v; renderKalender(); scheduleSave(); };
+  const acts = el('div', 'item-acts');
+  const today = el('button', 'item-act'); today.innerHTML = icon('calendar');
+  today.setAttribute('aria-label', 'Sett til i dag'); today.dataset.tip = 'I dag';
+  today.addEventListener('click', () => setDate(todayStr()));
+  const bump = el('button', 'item-act'); bump.innerHTML = icon('calendar-plus');
+  bump.setAttribute('aria-label', 'Utsett én dag'); bump.dataset.tip = '+1 dag';
+  bump.addEventListener('click', () => setDate(addDays(entry.date, 1)));
+  acts.append(today, bump);
+
+  row.append(cb.el, main, acts);
+  return row;
+}
+function renderKalender() {
+  const root = document.getElementById('agendaRoot');
+  if (!root) return;
+  root.textContent = '';
+  const entries = agendaEntries();
+  if (!entries.length) {
+    root.appendChild(el('div', 'list-empty', 'Ingenting planlagt.'));
+    pendingEnterId = null;
+    return;
+  }
+  // sort within bucket: date asc, then high→normal→low priority (tasks)
+  const sortFn = (a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    const pr = (e) => e.kind === 'task' ? PRIO_RANK[e.ref.priority] : 1;
+    return pr(a) - pr(b);
+  };
+  AGENDA_BUCKETS.forEach(bucket => {
+    const items = entries.filter(e => agendaBucket(e.date) === bucket.key).sort(sortFn);
+    if (!items.length) return;
+    const group = el('div', 'agenda-group');
+    group.appendChild(el('div', 'agenda-label' + (bucket.key === 'forfalt' ? ' overdue' : ''), bucket.label));
+    const list = el('div', 'item-list');
+    items.forEach(e => list.appendChild(agendaCardEl(e)));
+    group.appendChild(list);
+    root.appendChild(group);
+  });
+  pendingEnterId = null;
+}
+
+// =====================================================================
 // nav / badges / year
 // =====================================================================
 function renderBadges() {
@@ -926,6 +1036,7 @@ function setView(v) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.nav === v));
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.dataset.view === v));
   if (v === 'designlab' && !labBuilt) renderDesignLab();
+  if (v === 'kalender') renderKalender();
   scheduleSave();
 }
 function renderYear() { document.getElementById('yearLabel').textContent = String(state.year); }
@@ -1035,6 +1146,8 @@ function applySettings() {
   document.documentElement.dataset.theme = st.theme;   // lets CSS scope per-theme touches
   document.documentElement.dataset.density = st.density;
   document.documentElement.dataset.contacted = st.contacted;
+  document.documentElement.dataset.btnStyle = st.btnStyle;  // live app-wide primary-button style
+
   document.body.dataset.bg = st.background;
 }
 
@@ -1201,10 +1314,73 @@ function labCell(label, node) {
 }
 function labRow(...nodes) { const r = el('div', 'lab-row'); nodes.forEach(n => n && r.appendChild(n)); return r; }
 
+// The headline: a live component Lab. Pick a style → it applies app-wide,
+// instantly, and persists. Built as a two-column layout (left sub-nav of
+// component categories, right = the active category's style grid).
+function renderComponentLab(root) {
+  const st = state.settings;
+  const sec = labSection('Komponent-lab',
+    'Velg en stil — den brukes i hele appen med én gang, og huskes. Forhåndsvisningen i hvert kort viser sin egen stil.');
+  const card = el('div', 'card lab-card lab-live');
+  const cols = el('div', 'lab-live-cols');
+
+  // left sub-nav: Knapper (active) + Felt/Nedtrekk (disabled, "Snart")
+  const nav = el('div', 'lab-subnav');
+  const cats = [
+    { key: 'knapper', label: 'Knapper', active: true },
+    { key: 'felt', label: 'Felt', active: false },
+    { key: 'nedtrekk', label: 'Nedtrekk', active: false },
+  ];
+  cats.forEach(c => {
+    const item = el('button', 'lab-subnav-item' + (c.active ? ' active' : ' disabled'));
+    item.type = 'button';
+    item.appendChild(el('span', null, c.label));
+    if (!c.active) { item.appendChild(el('span', 'lab-soon', 'Snart')); item.disabled = true; }
+    nav.appendChild(item);
+  });
+
+  // right panel: the Knapper style grid
+  const panel = el('div', 'lab-live-panel');
+  const grid = el('div', 'btn-style-grid');
+  BTN_STYLES.forEach(s => {
+    const isActive = st.btnStyle === s.key;
+    const cardEl = el('button', 'btn-style-card' + (isActive ? ' active' : ''));
+    cardEl.type = 'button';
+    cardEl.dataset.btnStyle = s.key;  // scopes the preview to THIS style, regardless of global
+    if (isActive) { const badge = el('span', 'btn-style-badge', 'AKTIV'); cardEl.appendChild(badge); }
+    const sampleWrap = el('div', 'btn-style-sample');
+    // a real primary button — the preview shows its own variant via the wrapper attr
+    const sample = button({ label: 'Legg til', variant: 'primary', icon: 'plus' });
+    sample.tabIndex = -1;  // the whole card is the click target
+    sampleWrap.appendChild(sample);
+    const meta = el('div', 'btn-style-meta');
+    meta.appendChild(el('div', 'btn-style-name', s.label));
+    meta.appendChild(el('div', 'btn-style-desc', s.desc));
+    cardEl.append(sampleWrap, meta);
+    cardEl.addEventListener('click', () => {
+      if (state.settings.btnStyle === s.key) return;
+      state.settings.btnStyle = s.key;
+      applySettings();        // flips data-btn-style on <html> → every .btn.primary updates live
+      renderDesignLab();      // re-render so the AKTIV badge moves
+      scheduleSave();
+    });
+    grid.appendChild(cardEl);
+  });
+  panel.appendChild(grid);
+
+  cols.append(nav, panel);
+  card.appendChild(cols);
+  sec.appendChild(card);
+  root.appendChild(sec);
+}
+
 function renderDesignLab() {
   labBuilt = true;
   const root = document.getElementById('labRoot');
   root.textContent = '';
+
+  // ---- LIVE COMPONENT LAB (headline) ----
+  renderComponentLab(root);
 
   // ---- TOKENS: colour palette ----
   {
@@ -1475,7 +1651,7 @@ function renderDesignLab() {
 // =====================================================================
 function renderAll() {
   applySettings();
-  renderYear(); renderGrid(); renderTasks(); renderReferat();
+  renderYear(); renderGrid(); renderTasks(); renderReferat(); renderKalender();
   renderSettings();
   document.getElementById('summary').value = state.summary;
   if (labBuilt || state.view === 'designlab') renderDesignLab();

@@ -40,6 +40,7 @@
         <button class="nav-item active" data-nav="oversikt"><span class="ni-ic" data-icon="grid"></span><span class="ni-label">Oversikt</span></button>
         <button class="nav-item" data-nav="tasks"><span class="ni-ic" data-icon="check-square"></span><span class="ni-label">Gjøremål</span><span class="nav-badge" id="navTasks"></span></button>
         <button class="nav-item" data-nav="referat"><span class="ni-ic" data-icon="pen-line"></span><span class="ni-label">Referat</span><span class="nav-badge" id="navReferat"></span></button>
+        <button class="nav-item" data-nav="kalender"><span class="ni-ic" data-icon="calendar"></span><span class="ni-label">Kalender</span></button>
         <button class="nav-item hidden" data-nav="notes"><span class="ni-ic" data-icon="notebook"></span><span class="ni-label">Notater</span></button>
         <button class="nav-item" data-nav="settings"><span class="ni-ic" data-icon="settings"></span><span class="ni-label">Innstillinger</span></button>
         <button class="nav-item" data-nav="designlab"><span class="ni-ic" data-icon="palette"></span><span class="ni-label">Designlab</span></button>
@@ -118,6 +119,12 @@
           <summary>Skrevet (<span id="refDoneCount">0</span>)</summary>
           <div id="refDone" class="item-list done"></div>
         </details>
+      </section>
+
+      <!-- ---------- Kalender (agenda) ---------- -->
+      <section class="view" data-view="kalender">
+        <div class="view-head"><h1>Kalender</h1></div>
+        <div id="agendaRoot" class="agenda"></div>
       </section>
 
       <!-- ---------- Notater ---------- -->
