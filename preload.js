@@ -22,4 +22,12 @@ contextBridge.exposeInMainWorld('api', {
   // flush-on-close: main asks us to persist before the window closes
   onFlush: (cb) => ipcRenderer.on('app:flush', () => cb()),
   flushed: () => ipcRenderer.send('app:flushed'),
+
+  // auto-update: manual check, install (restart), version, and a status stream
+  updates: {
+    check: () => ipcRenderer.invoke('update:check'),
+    install: () => ipcRenderer.invoke('update:install'),
+    version: () => ipcRenderer.invoke('app:version'),
+    onStatus: (cb) => ipcRenderer.on('update:status', (_e, s) => cb(s)),
+  },
 });

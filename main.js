@@ -35,7 +35,8 @@ function saveData(data) {
 }
 
 let win;
-let flushing = false; // true while we wait for the renderer to persist on close
+let flushing = false;   // true while we wait for the renderer to persist on close
+let installing = false; // true while we're flushing-then-installing an update
 
 function createWindow() {
   win = new BrowserWindow({
@@ -69,12 +70,93 @@ function createWindow() {
   // Flush-on-close: saves are debounced in the renderer, so closing right after
   // a change could drop it. Hold the close, ask the renderer to persist now, and
   // only then actually close. A short timeout guarantees we never hang shut.
+  //
+  // When `installing` is true (the user chose "Start på nytt" to apply an
+  // update), we still flush her data, but instead of merely destroying the
+  // window we hand off to `finishInstall()` so the new version actually gets
+  // installed. The `app:flushed` IPC and the safety timeout both route through
+  // the same guarded path so install fires exactly once.
   win.on('close', (e) => {
     if (flushing || !win || win.isDestroyed()) return;
     e.preventDefault();
     flushing = true;
     win.webContents.send('app:flush');
-    setTimeout(() => { if (win && !win.isDestroyed()) win.destroy(); }, 1200);
+    setTimeout(closeOrInstall, 1200);
+  });
+}
+
+// Single, idempotent exit path shared by the flush timeout and `app:flushed`.
+// If we're mid-install, quit-and-install; otherwise just destroy the window.
+let exited = false;
+function closeOrInstall() {
+  if (exited) return;
+  exited = true;
+  if (installing && pendingUpdater) {
+    try { pendingUpdater.quitAndInstall(); return; }
+    catch (_) { /* fall through to a normal close so we never strand the app */ }
+  }
+  if (win && !win.isDestroyed()) win.destroy();
+}
+
+// Set once setupUpdater() runs in a packed app; used by closeOrInstall().
+let pendingUpdater = null;
+
+// Robust, *visible* auto-update. All states are forwarded to the renderer so
+// the UI can show progress; errors are always swallowed so the updater can
+// never crash or block the app. No-ops automatically when unpackaged (dev).
+function setupUpdater() {
+  let autoUpdater;
+  try {
+    ({ autoUpdater } = require('electron-updater'));
+  } catch (_) {
+    return; // updater dependency unavailable — silently skip
+  }
+  pendingUpdater = autoUpdater;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  const send = (payload) => {
+    try {
+      if (win && !win.isDestroyed()) win.webContents.send('update:status', payload);
+    } catch (_) { /* window gone — ignore */ }
+  };
+
+  autoUpdater.on('checking-for-update', () => send({ phase: 'checking' }));
+  autoUpdater.on('update-available', (info) => send({ phase: 'available', version: info && info.version }));
+  autoUpdater.on('update-not-available', () => send({ phase: 'none' }));
+  autoUpdater.on('download-progress', (p) => send({ phase: 'downloading', percent: Math.round((p && p.percent) || 0) }));
+  autoUpdater.on('update-downloaded', (info) => send({ phase: 'downloaded', version: info && info.version }));
+  autoUpdater.on('error', (err) => send({ phase: 'error', error: String((err && err.message) || err) }));
+
+  const active = typeof autoUpdater.isUpdaterActive === 'function' ? autoUpdater.isUpdaterActive() : false;
+  if (active) {
+    // Initial check shortly after launch + a slow periodic check for sessions
+    // that stay open for days. Both swallow errors.
+    autoUpdater.checkForUpdates().catch(() => {});
+    setInterval(() => { autoUpdater.checkForUpdates().catch(() => {}); }, 6 * 60 * 60 * 1000);
+  }
+
+  // Manual "Se etter oppdateringer".
+  ipcMain.handle('update:check', async () => {
+    if (!active) return { phase: 'dev' };
+    try {
+      await autoUpdater.checkForUpdates();
+      return { phase: 'checking' }; // events drive the rest of the UI
+    } catch (e) {
+      return { phase: 'error', error: String((e && e.message) || e) };
+    }
+  });
+
+  // "Start på nytt" — install the downloaded update. Flush data first via the
+  // close interceptor, which then routes to quitAndInstall (see closeOrInstall).
+  ipcMain.handle('update:install', () => {
+    if (installing) return;          // guard against double-fire
+    installing = true;
+    if (win && !win.isDestroyed()) {
+      win.close();                   // triggers flush-on-close → closeOrInstall
+    } else {
+      try { autoUpdater.quitAndInstall(); } catch (_) { app.quit(); }
+    }
   });
 }
 
@@ -112,10 +194,7 @@ app.whenReady().then(async () => {
   createWindow();
   // Auto-update from GitHub Releases. No-ops in dev / when unpackaged, and any
   // failure (offline, no release yet) is swallowed so it never blocks the app.
-  try {
-    const { autoUpdater } = require('electron-updater');
-    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
-  } catch (_) { /* updater unavailable — ignore */ }
+  try { setupUpdater(); } catch (_) { /* updater unavailable — ignore */ }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -139,8 +218,11 @@ ipcMain.handle('win:maximizeToggle', () => {
 });
 ipcMain.handle('win:close', () => { if (win) win.close(); });
 ipcMain.handle('win:isMaximized', () => !!(win && win.isMaximized()));
-// renderer confirms its final save landed → finish closing
-ipcMain.on('app:flushed', () => { if (win && !win.isDestroyed()) win.destroy(); });
+// renderer confirms its final save landed → finish closing (or install).
+ipcMain.on('app:flushed', () => closeOrInstall());
+
+// current app version — used by the Settings "Oppdateringer" UI.
+ipcMain.handle('app:version', () => app.getVersion());
 
 ipcMain.handle('data:export', async (_e, data) => {
   const stamp = new Date().toISOString().slice(0, 10);

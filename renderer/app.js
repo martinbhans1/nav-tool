@@ -2121,6 +2121,7 @@ const SETTINGS_CATS = [
   { key: 'tekst',    label: 'Tekst & størrelse', icon: 'edit' },
   { key: 'atferd',   label: 'Atferd',           icon: 'check-square' },
   { key: 'backup',   label: 'Sikkerhetskopi',   icon: 'download' },
+  { key: 'oppdater', label: 'Oppdateringer',    icon: 'rotate-ccw' },
   { key: 'reset',    label: 'Tilbakestill',     icon: 'rotate-ccw' },
 ];
 // build the left category menu + show only the active category's pane
@@ -3093,6 +3094,79 @@ function renderAll() {
 }
 
 // =====================================================================
+// auto-update — visible status in Settings + a global "ready" banner
+// =====================================================================
+// Single source of truth for the latest update phase, so both the Settings
+// pane and the banner reflect it. The status listener is wired ONCE in init().
+function initUpdates() {
+  const api = window.api && window.api.updates;
+  if (!api) return;
+
+  const verEl     = document.getElementById('updVersion');
+  const checkBtn  = document.getElementById('updCheckBtn');
+  const installBtn = document.getElementById('updInstallBtn');
+  const statusEl  = document.getElementById('updStatus');
+  const banner    = document.getElementById('updBanner');
+  const bannerTxt = banner && banner.querySelector('.upd-banner-text');
+  const bannerInstall = document.getElementById('updBannerInstall');
+  const bannerDismiss = document.getElementById('updBannerDismiss');
+
+  // current version label
+  if (verEl) api.version().then(v => { verEl.textContent = v || '—'; }).catch(() => {});
+
+  let bannerDismissed = false;
+
+  const reflect = (s) => {
+    if (!s || !s.phase) return;
+    if (statusEl) {
+      statusEl.classList.remove('is-error', 'is-ok');
+      let msg = '';
+      switch (s.phase) {
+        case 'dev':         msg = 'Oppdateringer er bare tilgjengelig i den installerte appen.'; break;
+        case 'checking':    msg = 'Sjekker…'; break;
+        case 'available':   msg = 'Oppdatering tilgjengelig' + (s.version ? ' (v' + s.version + ')' : '') + ' — laster ned…'; break;
+        case 'downloading': msg = 'Laster ned… ' + (s.percent != null ? s.percent + ' %' : ''); break;
+        case 'downloaded':  msg = 'Oppdatering klar' + (s.version ? ' (v' + s.version + ')' : '') + '.'; statusEl.classList.add('is-ok'); break;
+        case 'none':        msg = 'Du har siste versjon.'; statusEl.classList.add('is-ok'); break;
+        case 'error':       msg = 'Kunne ikke sjekke etter oppdateringer.'; statusEl.classList.add('is-error'); break;
+      }
+      statusEl.textContent = msg;
+    }
+    // the "Start på nytt" button (in the pane) appears only when ready
+    if (installBtn) installBtn.classList.toggle('hidden', s.phase !== 'downloaded');
+    // the check button is busy while checking/downloading
+    if (checkBtn) checkBtn.disabled = (s.phase === 'checking' || s.phase === 'downloading');
+
+    // global banner: only on 'downloaded', unless the user dismissed it
+    if (banner) {
+      if (s.phase === 'downloaded' && !bannerDismissed) {
+        if (bannerTxt) bannerTxt.textContent = 'Ny versjon klar' + (s.version ? ' · v' + s.version : '');
+        banner.classList.remove('hidden');
+      } else if (s.phase !== 'downloaded') {
+        banner.classList.add('hidden');
+      }
+    }
+  };
+
+  const doInstall = () => { api.install().catch(() => {}); };
+
+  if (checkBtn) checkBtn.addEventListener('click', () => {
+    api.check().then(reflect).catch(() => reflect({ phase: 'error' }));
+  });
+  if (installBtn) installBtn.addEventListener('click', doInstall);
+  if (bannerInstall) bannerInstall.addEventListener('click', doInstall);
+  if (bannerDismiss) bannerDismiss.addEventListener('click', () => {
+    bannerDismissed = true;
+    if (banner) banner.classList.add('hidden');
+  });
+
+  // the live stream from main drives everything (both pane + banner)
+  api.onStatus(reflect);
+  // expose for headless verification of the banner path
+  window.__updReflect = reflect;
+}
+
+// =====================================================================
 // custom frameless window controls
 // =====================================================================
 function initWindowControls() {
@@ -3130,6 +3204,7 @@ function initFlushOnClose() {
   hydrateIcons(document);   // static nav + header icons
   initWindowControls();
   initFlushOnClose();
+  initUpdates();
   state = normalize(await window.api.load());
   bind();
   renderAll();

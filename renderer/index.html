@@ -324,6 +324,19 @@
               </div>
             </div>
 
+            <div class="set-pane" data-cat="oppdater">
+              <div class="set-section">
+                <h2>Oppdateringer</h2>
+                <p class="view-sub set-intro">Hold appen oppdatert. Nye versjoner lastes ned automatisk og installeres når du starter appen på nytt.</p>
+                <div class="upd-version">Versjon <span id="updVersion">…</span></div>
+                <div class="set-actions">
+                  <button id="updCheckBtn" class="btn secondary"><span class="ic" data-icon="rotate-ccw"></span>Se etter oppdateringer</button>
+                  <button id="updInstallBtn" class="btn primary hidden"><span class="ic" data-icon="download"></span>Start på nytt</button>
+                </div>
+                <div id="updStatus" class="upd-status"></div>
+              </div>
+            </div>
+
             <div class="set-pane" data-cat="reset">
               <div class="set-section">
                 <h2>Tilbakestilling</h2>
@@ -347,6 +360,14 @@
 
   <!-- modal/dialog mount point -->
   <div id="modalMount"></div>
+
+  <!-- global "update ready" banner — shown when a new version is downloaded -->
+  <div id="updBanner" class="upd-banner hidden" role="status" aria-live="polite">
+    <span class="ic" data-icon="download"></span>
+    <span class="upd-banner-text">Ny versjon klar</span>
+    <button id="updBannerInstall" class="btn primary sm">Start på nytt</button>
+    <button id="updBannerDismiss" class="upd-banner-x" title="Lukk" aria-label="Lukk"><span class="ic" data-icon="x"></span></button>
+  </div>
 
   <script src="app.js"></script>
 </body>

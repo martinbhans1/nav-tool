@@ -1916,6 +1916,49 @@ body[data-bg="dots"] { background-image:
 }
 
 /* =====================================================================
+   auto-update (Settings "Oppdateringer" + global banner)
+   ===================================================================== */
+.upd-version {
+  font-size: var(--fs-sm); color: var(--muted);
+  margin: var(--sp-2) 0 var(--sp-3);
+}
+.upd-version span { color: var(--ink); font-weight: var(--fw-semibold); }
+.upd-status {
+  margin-top: var(--sp-3); min-height: 1.2em;
+  font-size: var(--fs-sm); color: var(--muted);
+}
+.upd-status.is-ok { color: var(--ink); }
+.upd-status.is-error { color: #c0392b; }
+
+/* unobtrusive bottom-centre bar, sits above everything, follows the theme */
+.upd-banner {
+  position: fixed; left: 50%; bottom: var(--sp-5, 24px);
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-pill);
+  box-shadow: var(--elev-pop);
+  animation: updBannerIn .22s var(--ease-out);
+}
+.upd-banner .ic { color: var(--accent); display: inline-flex; }
+.upd-banner .ic svg { width: 16px; height: 16px; }
+.upd-banner-text { font-size: var(--fs-base); font-weight: var(--fw-medium); }
+.upd-banner-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0;
+  background: transparent; border: none; border-radius: var(--r-pill);
+  color: var(--muted); cursor: pointer;
+}
+.upd-banner-x:hover { background: var(--hover); color: var(--ink); }
+.upd-banner-x svg { width: 15px; height: 15px; }
+@keyframes updBannerIn {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* =====================================================================
    utility
    ===================================================================== */
 .hidden { display: none !important; }
