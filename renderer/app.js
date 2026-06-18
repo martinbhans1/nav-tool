@@ -26,10 +26,22 @@ function fmtDate(s) {
   if (!s) return '';
   const d = new Date(s + 'T00:00:00');
   if (isNaN(d)) return s;
+  // Defensive: state/settings may not be initialized yet → default to long.
+  const fmt = (typeof state === 'object' && state.settings && state.settings.dateFormat) || 'lang';
+  if (fmt === 'numerisk') {
+    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+  }
   const base = d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' });
   return d.getFullYear() === new Date().getFullYear() ? base : `${base} ${String(d.getFullYear()).slice(2)}`;
 }
 const isOverdue = (s) => !!s && s < todayStr();
+// the new-task date prefilled per the "Standard frist" setting
+function defaultDueDate() {
+  const d = (typeof state === 'object' && state.settings && state.settings.defaultDue) || 'today';
+  if (d === 'tomorrow') return addDays(todayStr(), 1);
+  if (d === 'none') return '';
+  return todayStr();
+}
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 // add n days to a 'YYYY-MM-DD' string (or to today if empty) → 'YYYY-MM-DD'
 function addDays(s, n) {
@@ -169,10 +181,20 @@ const DD_STYLES = [
 ];
 const DD_STYLE_KEYS = DD_STYLES.map(s => s.key);
 
+const LANDING_VIEWS = ['hjem', 'oversikt', 'tasks', 'referat', 'kalender'];
+const MOTION_VALUES = ['full', 'redusert', 'av'];
+const HEADING_FONTS = ['auto', 'sans', 'serif'];
+const DATE_FORMATS = ['lang', 'numerisk'];
+const DEFAULT_DUE_VALUES = ['today', 'tomorrow', 'none'];
+
 function defaultSettings() {
   return { theme: 'lys', accent: '', font: 'system', scale: 100, radius: 12,
            density: 'comfortable', readingSize: 14, background: 'flat', contacted: 'green',
-           btnStyle: 'solid', fieldStyle: 'standard', ddStyle: 'standard' };
+           btnStyle: 'solid', fieldStyle: 'standard', ddStyle: 'standard',
+           // appearance (new)
+           gradientStrength: 6, motion: 'full', headingFont: 'auto',
+           // behavioral (new)
+           landingView: 'hjem', defaultPriority: 'normal', defaultDue: 'today', dateFormat: 'lang' };
 }
 
 function defaultState() {
@@ -185,8 +207,47 @@ function defaultState() {
     tasks: [],             // [{ id, title, note, due, priority, contactId, done, createdAt, doneAt }]
     referater: [],         // [{ id, title, note, date, contactId, done, createdAt, doneAt }]
     summary: '',
+    customThemes: [],      // [{ key:'egen-<id>', name, custom:true, ...full palette }] — user-made vibe bundles
     settings: defaultSettings(),
   };
+}
+
+// Validate a single user-made theme into a complete, safe vibe bundle (same
+// shape as a built-in THEMES entry, plus key/name/custom). Returns null if junk.
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+function sanitizeCustomTheme(t) {
+  if (!t || typeof t !== 'object') return null;
+  const key = typeof t.key === 'string' && t.key ? t.key : null;
+  if (!key || THEMES[key]) return null;                 // need a key that can't shadow a built-in
+  const hex = (v, fb) => (HEX6.test(v || '') ? v.toLowerCase() : fb);
+  const bg = hex(t.bg, '#f5f6f8');
+  return {
+    key,
+    name: String(t.name || 'Eget tema').slice(0, 40) || 'Eget tema',
+    custom: true,
+    bg,
+    panel: hex(t.panel, '#ffffff'),
+    ink: hex(t.ink, '#1b2230'),
+    muted: hex(t.muted, '#6b7480'),
+    faint: hex(t.faint, '#9aa3af'),
+    line: hex(t.line, '#e6e8ec'),
+    lineStrong: hex(t.lineStrong, '#d8dbe1'),
+    accent: hex(t.accent, '#4f46e5'),
+    shadow: typeof t.shadow === 'string' && t.shadow ? t.shadow : SHADOW_LIGHT,
+    head: t.head === HEAD_SERIF ? HEAD_SERIF : HEAD_SANS,
+    font: t.font === 'serif' ? 'serif' : 'system',
+    radius: Number.isFinite(t.radius) ? clamp(t.radius, 0, 22) : 12,
+    lift: Number.isFinite(t.lift) ? clamp(t.lift, 0, 14) : 4.5,
+  };
+}
+
+// Merge built-ins with the user's custom themes for any theme lookup / listing.
+// Built-ins always win on key collision (sanitizeCustomTheme already rejects
+// keys that shadow a built-in, so this is just belt-and-suspenders).
+function allThemes() {
+  const out = { ...THEMES };
+  for (const t of (state.customThemes || [])) out[t.key] = t;
+  return out;
 }
 
 // Accept v1 (persons/todos) and v2; always return a safe, complete v2 blob.
@@ -218,11 +279,25 @@ function normalize(s) {
       done: !!r.done, createdAt: r.createdAt || Date.now(), doneAt: r.doneAt || null,
     })),
     summary: typeof s.summary === 'string' ? s.summary : '',
+    customThemes: (() => {
+      const arr = Array.isArray(s.customThemes) ? s.customThemes : [];
+      const seen = new Set();
+      const out = [];
+      for (const raw of arr) {
+        const t = sanitizeCustomTheme(raw);
+        if (t && !seen.has(t.key)) { seen.add(t.key); out.push(t); }
+      }
+      return out;
+    })(),
     settings: (() => {
       const si = (s.settings && typeof s.settings === 'object') ? s.settings : {};
       const def = defaultSettings();
+      // valid themes = built-ins + the custom themes we just sanitized above
+      const customKeys = Array.isArray(s.customThemes)
+        ? new Set(s.customThemes.map(sanitizeCustomTheme).filter(Boolean).map(t => t.key)) : new Set();
+      const themeOk = (k) => !!THEMES[k] || customKeys.has(k);
       return {
-        theme: THEMES[si.theme] ? si.theme : def.theme,
+        theme: themeOk(si.theme) ? si.theme : def.theme,
         accent: /^#[0-9a-fA-F]{6}$/.test(si.accent || '') ? si.accent : '',
         font: FONTS.some(f => f.key === si.font) ? si.font : def.font,
         scale: Number.isFinite(si.scale) ? clamp(si.scale, 85, 130) : def.scale,
@@ -234,6 +309,13 @@ function normalize(s) {
         btnStyle: BTN_STYLE_KEYS.includes(si.btnStyle) ? si.btnStyle : def.btnStyle,
         fieldStyle: FIELD_STYLE_KEYS.includes(si.fieldStyle) ? si.fieldStyle : def.fieldStyle,
         ddStyle: DD_STYLE_KEYS.includes(si.ddStyle) ? si.ddStyle : def.ddStyle,
+        gradientStrength: Number.isFinite(si.gradientStrength) ? clamp(si.gradientStrength, 0, 14) : def.gradientStrength,
+        motion: MOTION_VALUES.includes(si.motion) ? si.motion : def.motion,
+        headingFont: HEADING_FONTS.includes(si.headingFont) ? si.headingFont : def.headingFont,
+        landingView: LANDING_VIEWS.includes(si.landingView) ? si.landingView : def.landingView,
+        defaultPriority: ['low', 'normal', 'high'].includes(si.defaultPriority) ? si.defaultPriority : def.defaultPriority,
+        defaultDue: DEFAULT_DUE_VALUES.includes(si.defaultDue) ? si.defaultDue : def.defaultDue,
+        dateFormat: DATE_FORMATS.includes(si.dateFormat) ? si.dateFormat : def.dateFormat,
       };
     })(),
   };
@@ -633,6 +715,17 @@ function confirmModal({ title, body, confirmLabel = 'OK', cancelLabel = 'Avbryt'
 // --- colour maths (hex ⇄ rgb ⇄ hsv) for the interactive picker ---
 function hexToRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function rgbToHex(r, g, b) { const h = (x) => Math.round(clamp(x, 0, 255)).toString(16).padStart(2, '0'); return '#' + h(r) + h(g) + h(b); }
+// relative luminance 0..1 (perceptual-ish) — used to detect light vs dark bg
+function hexLuminance(hex) {
+  const [r, g, b] = hexToRgb(hex);
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+// linear mix: t=0 → a, t=1 → b. Returns a hex string.
+function mixHex(a, b, t) {
+  const [ar, ag, ab] = hexToRgb(a), [br, bg, bb] = hexToRgb(b);
+  t = clamp(t, 0, 1);
+  return rgbToHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t);
+}
 function rgbToHsv(r, g, b) {
   r /= 255; g /= 255; b /= 255;
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
@@ -1558,10 +1651,10 @@ function bind() {
   taskContactCombo = buildCombo(document.getElementById('taskContactCombo'), { getItems: contactItems });
   refContactCombo = buildCombo(document.getElementById('refContactCombo'), { getItems: contactItems });
   taskPriorityDd = buildDropdown(document.getElementById('taskPriorityDd'), {
-    value: 'normal',
+    value: state.settings.defaultPriority || 'normal',
     items: [{ value: 'low', label: 'Lav' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'Høy' }],
   });
-  taskDuePicker = buildDatePicker(document.getElementById('taskDue'), { value: todayStr(), placeholder: 'Velg dato' });
+  taskDuePicker = buildDatePicker(document.getElementById('taskDue'), { value: defaultDueDate(), placeholder: 'Velg dato' });
   refDatePicker = buildDatePicker(document.getElementById('refDate'), { value: todayStr(), placeholder: 'Velg dato' });
 
   document.getElementById('addContactForm').addEventListener('submit', (e) => {
@@ -1584,7 +1677,9 @@ function bind() {
       contactId, done: false, createdAt: Date.now(), doneAt: null,
     });
     pendingEnterId = id; // animate the new task in
-    e.target.reset(); taskContactCombo.clear(); taskPriorityDd.value = 'normal'; taskDuePicker.value = todayStr();
+    e.target.reset(); taskContactCombo.clear();
+    taskPriorityDd.value = state.settings.defaultPriority || 'normal';
+    taskDuePicker.value = defaultDueDate();
     renderTasks(); document.getElementById('taskTitle').focus(); scheduleSave();
   });
 
@@ -1619,7 +1714,7 @@ function bind() {
 // =====================================================================
 function applySettings() {
   const st = state.settings, root = document.documentElement.style;
-  const t = THEMES[st.theme] || THEMES.lys;
+  const t = allThemes()[st.theme] || THEMES.lys;
   root.setProperty('--bg', t.bg);
   root.setProperty('--panel', t.panel);
   root.setProperty('--ink', t.ink);
@@ -1636,9 +1731,14 @@ function applySettings() {
   root.setProperty('--surface-lift', (t.lift != null ? t.lift : 5) + '%');
   const f = FONTS.find(x => x.key === st.font) || FONTS[0];
   root.setProperty('--font', f.stack);
-  // heading font: the theme's "vibe" head font (Aesthetic = serif). If the user
-  // has explicitly chosen a serif body font, headings inherit it too.
-  root.setProperty('--font-head', (st.font === 'serif') ? f.stack : (t.head || HEAD_SANS));
+  // heading font: explicit override wins, else the theme's "vibe" head font
+  // (Aesthetic = serif). If the user has explicitly chosen a serif body font,
+  // headings inherit it too.
+  let headStack;
+  if (st.headingFont === 'sans') headStack = HEAD_SANS;
+  else if (st.headingFont === 'serif') headStack = HEAD_SERIF;
+  else headStack = (st.font === 'serif') ? f.stack : (t.head || HEAD_SANS); // 'auto'
+  root.setProperty('--font-head', headStack);
   const r = clamp(st.radius, 0, 22);
   root.setProperty('--r', r + 'px');
   root.setProperty('--r-sm', Math.max(2, Math.round(r * 0.62)) + 'px');
@@ -1655,21 +1755,58 @@ function applySettings() {
   document.documentElement.dataset.btnStyle = st.btnStyle;  // live app-wide primary-button style
   document.documentElement.dataset.fieldStyle = st.fieldStyle;  // live app-wide form-field style
   document.documentElement.dataset.ddStyle = st.ddStyle;  // live app-wide dropdown-menu style
+  // background gradient intensity (drives the sidebar + window gradient)
+  root.setProperty('--grad-strength', clamp(st.gradientStrength, 0, 14) + '%');
+  // motion preference: 'full' | 'redusert' | 'av' (CSS scopes off this)
+  document.documentElement.dataset.motion = st.motion;
 
   document.body.dataset.bg = st.background;
 }
 
 // settings controls (built with the new components, native-free)
-let densitySeg, bgSeg, contactedSeg, readingSlider, scaleSlider, radiusSlider, accentWell;
+let densitySeg, bgSeg, contactedSeg, readingSlider, scaleSlider, radiusSlider, accentWell, gradientSlider;
+
+// Innstillinger: categorized two-column layout (left menu + right pane).
+let settingsCategory = 'tema';
+const SETTINGS_CATS = [
+  { key: 'tema',     label: 'Tema',             icon: 'palette' },
+  { key: 'utseende', label: 'Utseende',         icon: 'settings' },
+  { key: 'tekst',    label: 'Tekst & størrelse', icon: 'edit' },
+  { key: 'atferd',   label: 'Atferd',           icon: 'check-square' },
+  { key: 'backup',   label: 'Sikkerhetskopi',   icon: 'download' },
+  { key: 'reset',    label: 'Tilbakestill',     icon: 'rotate-ccw' },
+];
+// build the left category menu + show only the active category's pane
+function renderSetCatNav() {
+  const nav = document.getElementById('setCatNav');
+  if (!nav) return;
+  if (!SETTINGS_CATS.some(c => c.key === settingsCategory)) settingsCategory = 'tema';
+  nav.textContent = '';
+  SETTINGS_CATS.forEach(c => {
+    const item = el('button', 'set-catnav-item' + (c.key === settingsCategory ? ' active' : ''));
+    item.type = 'button';
+    const ic = el('span', 'ic'); ic.innerHTML = icon(c.icon); item.appendChild(ic);
+    item.appendChild(el('span', null, c.label));
+    item.addEventListener('click', () => {
+      if (settingsCategory === c.key) return;
+      settingsCategory = c.key;
+      renderSetCatNav();
+    });
+    nav.appendChild(item);
+  });
+  document.querySelectorAll('.set-pane').forEach(p => p.classList.toggle('active', p.dataset.cat === settingsCategory));
+}
 
 function renderSettings() {
+  renderSetCatNav();
   const st = state.settings;
-  const t = THEMES[st.theme] || THEMES.lys;
+  const themes = allThemes();
+  const t = themes[st.theme] || THEMES.lys;
 
   const tg = document.getElementById('themeGrid');
   tg.textContent = '';
-  Object.entries(THEMES).forEach(([key, th]) => {
-    const card = el('button', 'theme-card' + (key === st.theme ? ' active' : '')); card.type = 'button';
+  Object.entries(themes).forEach(([key, th]) => {
+    const card = el('button', 'theme-card' + (key === st.theme ? ' active' : '') + (th.custom ? ' custom' : '')); card.type = 'button';
     const prev = el('div', 'theme-prev'); prev.style.background = th.bg;
     const bar = el('div', 'tp-bar'); bar.style.background = th.panel; bar.style.borderRight = '1px solid ' + th.line;
     const p1 = el('div', 'tp-panel'); p1.style.background = th.lineStrong;
@@ -1687,8 +1824,29 @@ function renderSettings() {
       if (Number.isFinite(th.radius)) st.radius = th.radius;
       applySettings(); renderSettings(); refreshDesignLab(); scheduleSave();
     });
+    // custom themes get hover edit/delete affordances (built-ins stay clean)
+    if (th.custom) {
+      const tools = el('div', 'theme-tools');
+      const edit = el('button', 'theme-tool'); edit.type = 'button'; edit.dataset.tip = 'Rediger';
+      edit.innerHTML = icon('pen-line');
+      edit.addEventListener('click', (e) => { e.stopPropagation(); openThemeBuilder(th); });
+      const del = el('button', 'theme-tool'); del.type = 'button'; del.dataset.tip = 'Slett';
+      del.innerHTML = icon('x');
+      del.addEventListener('click', (e) => { e.stopPropagation(); deleteCustomTheme(th); });
+      tools.append(edit, del);
+      card.appendChild(tools);
+    }
     tg.appendChild(card);
   });
+
+  // "+ Lag eget tema" — opens the builder for a brand-new theme
+  const addCard = el('button', 'theme-card theme-add'); addCard.type = 'button';
+  const addInner = el('div', 'theme-add-inner');
+  const plus = el('span', 'ic'); plus.innerHTML = icon('plus'); addInner.appendChild(plus);
+  addInner.appendChild(el('span', null, 'Lag eget tema'));
+  addCard.appendChild(addInner);
+  addCard.addEventListener('click', () => openThemeBuilder(null));
+  tg.appendChild(addCard);
 
   // accent: custom colour well (opens live picker) + quick swatches + default
   const eff = (st.accent || t.accent).toLowerCase();
@@ -1712,6 +1870,8 @@ function renderSettings() {
     b.addEventListener('click', () => { st.accent = hex; applySettings(); renderSettings(); refreshDesignLab(); scheduleSave(); });
     sw.appendChild(b);
   });
+
+  buildThemePreview();
 
   const fg = document.getElementById('fontGrid'); fg.textContent = '';
   FONTS.forEach(f => {
@@ -1747,10 +1907,287 @@ function renderSettings() {
   radiusHost.appendChild(radiusSlider.el);
   document.getElementById('radiusVal').textContent = st.radius + 'px';
 
+  // gradient strength slider (Utseende → Bakgrunn). Live on drag.
+  const gradHost = document.getElementById('gradientRange'); gradHost.textContent = '';
+  gradientSlider = buildSlider({ min: 0, max: 14, step: 1, value: st.gradientStrength, onInput: (v) => {
+    st.gradientStrength = clamp(v, 0, 14); document.getElementById('gradientVal').textContent = st.gradientStrength + '%'; applySettings(); scheduleSave();
+  } });
+  gradHost.appendChild(gradientSlider.el);
+  document.getElementById('gradientVal').textContent = st.gradientStrength + '%';
+
   // segmented controls
   mountSeg('densityGroup', st.density);
   mountSeg('bgGroup', st.background);
   mountSeg('contactedGroup', st.contacted);
+
+  // ---- new appearance controls (Utseende) ----
+  // Overskrift-font: følg tema / Sans / Serif (component-built segmented)
+  const headHost = document.getElementById('headingFontGroup'); headHost.textContent = '';
+  const headSeg = buildSegmented({
+    value: st.headingFont,
+    items: [{ value: 'auto', label: 'Følg tema' }, { value: 'sans', label: 'Sans' }, { value: 'serif', label: 'Serif' }],
+    onChange: (v) => { st.headingFont = v; applySettings(); scheduleSave(); },
+  });
+  headHost.appendChild(headSeg.el);
+
+  // Animasjoner: full / redusert / av
+  const motionHost = document.getElementById('motionGroup'); motionHost.textContent = '';
+  const motionSeg = buildSegmented({
+    value: st.motion,
+    items: [{ value: 'full', label: 'Full' }, { value: 'redusert', label: 'Redusert' }, { value: 'av', label: 'Av' }],
+    onChange: (v) => { st.motion = v; applySettings(); scheduleSave(); },
+  });
+  motionHost.appendChild(motionSeg.el);
+
+  // ---- new behavioral controls (Atferd) ----
+  const landingHost = document.getElementById('landingViewDd'); landingHost.textContent = '';
+  buildDropdown(landingHost, {
+    value: st.landingView,
+    items: [
+      { value: 'hjem', label: 'Hjem' }, { value: 'oversikt', label: 'Oversikt' },
+      { value: 'tasks', label: 'Gjøremål' }, { value: 'referat', label: 'Referat' },
+      { value: 'kalender', label: 'Kalender' },
+    ],
+    onChange: (v) => { st.landingView = v; scheduleSave(); },
+  });
+
+  const prioHost = document.getElementById('defaultPriorityDd'); prioHost.textContent = '';
+  buildDropdown(prioHost, {
+    value: st.defaultPriority,
+    items: [{ value: 'low', label: 'Lav' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'Høy' }],
+    onChange: (v) => { st.defaultPriority = v; if (taskPriorityDd) taskPriorityDd.value = v; scheduleSave(); },
+  });
+
+  const dueHost = document.getElementById('defaultDueGroup'); dueHost.textContent = '';
+  const dueSeg = buildSegmented({
+    value: st.defaultDue,
+    items: [{ value: 'today', label: 'I dag' }, { value: 'tomorrow', label: 'I morgen' }, { value: 'none', label: 'Ingen' }],
+    onChange: (v) => { st.defaultDue = v; if (taskDuePicker) taskDuePicker.value = defaultDueDate(); scheduleSave(); },
+  });
+  dueHost.appendChild(dueSeg.el);
+
+  const dfHost = document.getElementById('dateFormatGroup'); dfHost.textContent = '';
+  const dfSeg = buildSegmented({
+    value: st.dateFormat,
+    items: [{ value: 'lang', label: 'Lang (18. jun)' }, { value: 'numerisk', label: 'Numerisk (18.06.2026)' }],
+    onChange: (v) => {
+      st.dateFormat = v;
+      // dates appear app-wide; re-render the data views so chips/agenda update now.
+      renderGrid(); renderTasks(); renderReferat(); renderKalender(); renderHjem();
+      buildThemePreview();
+      scheduleSave();
+    },
+  });
+  dfHost.appendChild(dfSeg.el);
+}
+
+// Live preview card for the Tema category — reflects the CURRENT applied
+// settings (applySettings restyles everything live, so this updates instantly
+// when a theme/accent is picked). Token-driven; no inline colours.
+function buildThemePreview() {
+  const host = document.getElementById('themePreview');
+  if (!host) return;
+  host.textContent = '';
+  const card = el('div', 'tprev-card');
+  card.appendChild(el('div', 'tprev-head', 'Forhåndsvisning'));
+  card.appendChild(el('div', 'tprev-body', 'Slik ser tekst, knapper og merker ut med valgt tema.'));
+  const row = el('div', 'tprev-row');
+  row.appendChild(button({ label: 'Knapp', variant: 'primary', icon: 'check' }));
+  const chip1 = el('span', 'chip person'); { const i = el('span', 'ic'); i.innerHTML = icon('user'); chip1.append(i, el('span', null, 'AB')); }
+  const chip2 = el('span', 'chip due'); chip2.textContent = fmtDate(todayStr());
+  // sample contacted cell (green check)
+  const cell = el('span', 'tprev-cell on'); cell.innerHTML = CHECK_SVG;
+  row.append(chip1, chip2, cell);
+  card.appendChild(row);
+  host.appendChild(card);
+}
+
+// =====================================================================
+// CUSTOM THEME BUILDER — "Lag eget tema"
+// =====================================================================
+// Derive a full 11-field vibe bundle from just 3 chosen colours (bg/ink/accent)
+// plus a heading-font choice and a radius. Light vs dark is read off the bg
+// luminance; the rest of the palette is mixed from ink↔bg so it stays coherent.
+function deriveTheme({ bg, ink, accent, serif, radius }) {
+  const dark = hexLuminance(bg) < 0.5;
+  const white = '#ffffff';
+  return {
+    bg,
+    // panel lifts off bg toward white (light) / a lighter surface (dark)
+    panel: dark ? mixHex(bg, white, 0.07) : mixHex(bg, white, 0.55),
+    ink,
+    muted: mixHex(bg, ink, 0.52),
+    faint: mixHex(bg, ink, 0.32),
+    line: mixHex(bg, ink, 0.12),
+    lineStrong: mixHex(bg, ink, 0.20),
+    accent,
+    shadow: dark ? SHADOW_DARK : SHADOW_LIGHT,
+    head: serif ? HEAD_SERIF : HEAD_SANS,
+    font: serif ? 'serif' : 'system',
+    radius: clamp(radius, 0, 22),
+    lift: dark ? 7 : 4.5,
+  };
+}
+
+// A small live sample card that mirrors the look of buildThemePreview but is
+// driven by an explicit palette (so the modal can preview before saving).
+function renderThemeSample(host, th) {
+  host.textContent = '';
+  host.className = 'tb-sample';
+  // scope the palette as inline CSS vars so token-driven children inherit it
+  host.style.background = th.bg;
+  host.style.color = th.ink;
+  host.style.border = '1px solid ' + th.line;
+  const card = el('div', 'tb-sample-card');
+  card.style.background = th.panel;
+  card.style.border = '1px solid ' + th.line;
+  card.style.borderRadius = clamp(th.radius, 0, 22) + 'px';
+  const head = el('div', 'tb-sample-head', 'Forhåndsvisning');
+  head.style.fontFamily = th.head; head.style.color = th.ink;
+  const body = el('div', 'tb-sample-body', 'Slik ser tekst, knapper og merker ut.');
+  body.style.color = th.muted;
+  const row = el('div', 'tb-sample-row');
+  const btn = el('span', 'tb-sample-btn', 'Knapp');
+  btn.style.background = th.accent;
+  btn.style.color = hexLuminance(th.accent) > 0.62 ? '#0c1418' : '#ffffff';
+  btn.style.borderRadius = Math.max(2, Math.round(clamp(th.radius, 0, 22) * 0.62)) + 'px';
+  const chip = el('span', 'tb-sample-chip', 'AB');
+  chip.style.background = th.lineStrong; chip.style.color = th.ink;
+  const dot = el('span', 'tb-sample-dot'); dot.style.background = th.accent;
+  row.append(btn, chip, dot);
+  card.append(head, body, row);
+  host.appendChild(card);
+}
+
+// Open the builder. `existing` = the custom theme object to edit, or null for new.
+function openThemeBuilder(existing) {
+  const editing = !!existing;
+  // working values — seed from existing (edit) or sane defaults (new)
+  let name = editing ? existing.name : '';
+  let bg = editing ? existing.bg : '#f5f6f8';
+  let ink = editing ? existing.ink : '#1b2230';
+  let accent = editing ? existing.accent : '#4f46e5';
+  let serif = editing ? existing.head === HEAD_SERIF : false;
+  let radius = editing && Number.isFinite(existing.radius) ? existing.radius : 12;
+
+  const body = el('div', 'tb');
+
+  // Navn
+  const nameField = el('div', 'tb-field');
+  nameField.appendChild(el('label', 'tb-label', 'Navn'));
+  const nameInput = document.createElement('input');
+  nameInput.className = 'field'; nameInput.type = 'text'; nameInput.maxLength = 40;
+  nameInput.placeholder = 'Mitt tema'; nameInput.value = name;
+  nameField.appendChild(nameInput);
+  body.appendChild(nameField);
+
+  // sample (declared early so colour wells can repaint it live)
+  const sample = el('div');
+  const repaint = () => renderThemeSample(sample, deriveTheme({ bg, ink, accent, serif, radius }));
+
+  // three colour wells
+  const colorsRow = el('div', 'tb-colors');
+  const mkWell = (label, get, set) => {
+    const f = el('div', 'tb-field tb-colorfield');
+    f.appendChild(el('label', 'tb-label', label));
+    const host = el('div');
+    f.appendChild(host);
+    buildColorWell(host, {
+      value: get(),
+      onLive: (hex) => { set(hex); repaint(); },
+      onClose: () => { repaint(); },
+    });
+    return f;
+  };
+  colorsRow.append(
+    mkWell('Bakgrunn', () => bg, (v) => bg = v),
+    mkWell('Tekst', () => ink, (v) => ink = v),
+    mkWell('Aksent', () => accent, (v) => accent = v),
+  );
+  body.appendChild(colorsRow);
+
+  // heading font: Sans / Serif segmented
+  const headField = el('div', 'tb-field');
+  headField.appendChild(el('label', 'tb-label', 'Overskrift'));
+  const headSeg = buildSegmented({
+    value: serif ? 'serif' : 'sans',
+    items: [{ value: 'sans', label: 'Sans' }, { value: 'serif', label: 'Serif' }],
+    onChange: (v) => { serif = (v === 'serif'); repaint(); },
+  });
+  headField.appendChild(headSeg.el);
+  body.appendChild(headField);
+
+  // radius slider
+  const radField = el('div', 'tb-field');
+  const radLabRow = el('div', 'tb-label-row');
+  radLabRow.appendChild(el('label', 'tb-label', 'Hjørner'));
+  const radVal = el('span', 'tb-val', radius + 'px');
+  radLabRow.appendChild(radVal);
+  radField.appendChild(radLabRow);
+  const radSlider = buildSlider({ min: 0, max: 22, step: 1, value: radius, onInput: (v) => {
+    radius = clamp(v, 0, 22); radVal.textContent = radius + 'px'; repaint();
+  } });
+  radField.appendChild(radSlider.el);
+  body.appendChild(radField);
+
+  // live preview
+  const prevField = el('div', 'tb-field');
+  prevField.appendChild(el('label', 'tb-label', 'Forhåndsvisning'));
+  prevField.appendChild(sample);
+  body.appendChild(prevField);
+  repaint();
+
+  // footer
+  const foot = el('div', 'lab-row');
+  const cancel = button({ label: 'Avbryt', variant: 'ghost' });
+  const save = button({ label: 'Lagre', variant: 'primary', icon: 'check' });
+  foot.append(cancel, save);
+
+  const m = openModal({ title: editing ? 'Rediger tema' : 'Lag eget tema', bodyNode: body, footNode: foot, width: 440 });
+
+  cancel.addEventListener('click', () => {
+    m.close();
+    applySettings();   // revert any live colour-well preview that leaked to the app
+  });
+
+  save.addEventListener('click', () => {
+    const finalName = (nameInput.value.trim() || 'Eget tema').slice(0, 40);
+    const palette = deriveTheme({ bg, ink, accent, serif, radius });
+    if (editing) {
+      // update in place
+      const i = state.customThemes.findIndex(x => x.key === existing.key);
+      const merged = sanitizeCustomTheme({ ...palette, key: existing.key, name: finalName, custom: true });
+      if (i >= 0 && merged) state.customThemes[i] = merged;
+    } else {
+      const key = 'egen-' + uid();
+      const created = sanitizeCustomTheme({ ...palette, key, name: finalName, custom: true });
+      if (created) {
+        state.customThemes.push(created);
+        // select the new theme as a full vibe bundle
+        state.settings.theme = key;
+        state.settings.accent = '';
+        state.settings.font = created.font;
+        state.settings.radius = created.radius;
+      }
+    }
+    m.close();
+    applySettings(); renderSettings(); refreshDesignLab(); scheduleSave();
+  });
+}
+
+function deleteCustomTheme(th) {
+  confirmModal({
+    title: 'Slett tema?', body: `Vil du slette «${th.name}»?`, confirmLabel: 'Slett', danger: true,
+    onConfirm: () => {
+      state.customThemes = state.customThemes.filter(x => x.key !== th.key);
+      if (state.settings.theme === th.key) {
+        // active theme was deleted → fall back to the default built-in
+        state.settings.theme = 'lys';
+        state.settings.accent = '';
+      }
+      applySettings(); renderSettings(); refreshDesignLab(); scheduleSave();
+    },
+  });
 }
 
 // the segmented groups are authored as static HTML buttons; wire + sync them.
@@ -1789,16 +2226,15 @@ function bindSettings() {
   if (reveal && window.api.revealData) reveal.addEventListener('click', () => window.api.revealData());
 
   document.getElementById('resetTheme').addEventListener('click', () => {
-    // back to defaults, but keep the current theme AND restore that theme's vibe
-    // bundle (heading/body font + radius), so resetting doesn't strip its character.
-    const cur = state.settings.theme;
-    const th = THEMES[cur] || THEMES.lys;
-    state.settings = {
-      ...defaultSettings(), theme: cur,
-      font: th.font || 'system',
-      radius: Number.isFinite(th.radius) ? th.radius : 12,
-    };
-    applySettings(); renderSettings(); refreshDesignLab(); scheduleSave();
+    // full reset: every setting (appearance + behavioral) back to defaults.
+    state.settings = defaultSettings();
+    // keep the task add-form controls in sync with the reset behavioral defaults
+    if (taskPriorityDd) taskPriorityDd.value = state.settings.defaultPriority;
+    if (taskDuePicker) taskDuePicker.value = defaultDueDate();
+    applySettings(); renderSettings(); refreshDesignLab();
+    // dateFormat may have changed → refresh data views so dates re-render
+    renderGrid(); renderTasks(); renderReferat(); renderKalender(); renderHjem();
+    scheduleSave();
   });
 }
 
@@ -2246,8 +2682,10 @@ function renderAll() {
   renderSettings();
   document.getElementById('summary').value = state.summary;
   if (labBuilt || state.view === 'designlab') renderDesignLab();
-  // Notater is hidden for now — never land on it; a missing/notes view → Hjem.
-  setView((!state.view || state.view === 'notes') ? 'hjem' : state.view);
+  // On launch, open the configured landing view. Fall back to 'hjem' if the
+  // stored landingView is invalid; the hidden 'notes' view is never a landing.
+  const landing = LANDING_VIEWS.includes(state.settings.landingView) ? state.settings.landingView : 'hjem';
+  setView(landing);
 }
 
 // =====================================================================

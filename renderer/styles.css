@@ -216,6 +216,22 @@ body {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
 
+/* ===== motion preference (Innstillinger → Animasjoner) =====
+   'av' kills all motion outright; 'redusert' disables the bigger enter/leave/
+   pop animations but keeps quick hovers/transitions. 'full' = no override. */
+[data-motion="av"] *, [data-motion="av"] *::before, [data-motion="av"] *::after {
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+}
+[data-motion="redusert"] .item.entering,
+[data-motion="redusert"] .pop,
+[data-motion="redusert"] .menu,
+[data-motion="redusert"] .modal,
+[data-motion="redusert"] .modal-overlay,
+[data-motion="redusert"] .item.flash { animation: none !important; }
+[data-motion="redusert"] .item.leaving { transition-duration: .001ms !important; }
+
 /* =====================================================================
    SHELL — sidebar (elevation, not a border) + content
    ===================================================================== */
@@ -1216,12 +1232,37 @@ textarea.field {
 /* =====================================================================
    SETTINGS
    ===================================================================== */
+/* ---- categorized two-column layout (left menu + right pane) ---- */
+.set-layout { display: flex; gap: var(--sp-5); align-items: flex-start; }
+.set-catnav { display: flex; flex-direction: column; gap: 2px; width: 200px; flex-shrink: 0; }
+.set-catnav-item {
+  display: flex; align-items: center; gap: var(--sp-3);
+  height: var(--control-h); padding: 0 var(--sp-3); text-align: left;
+  border: 1px solid transparent; border-radius: var(--r-sm); background: transparent;
+  color: var(--muted); font: inherit; font-size: var(--fs-base); font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+.set-catnav-item .ic { width: 17px; height: 17px; flex-shrink: 0; }
+.set-catnav-item:hover { background: var(--hover); color: var(--ink); }
+.set-catnav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: var(--fw-semibold); }
+.set-pane-card { flex: 1; min-width: 0; padding: 2px var(--sp-5) var(--sp-5); }
+.set-pane { display: none; }
+.set-pane.active { display: block; }
+
+@media (max-width: 720px) {
+  .set-layout { flex-direction: column; }
+  .set-catnav { flex-direction: row; flex-wrap: wrap; width: 100%; }
+  .set-pane-card { width: 100%; }
+}
+
 .set-card { padding: 2px var(--sp-5) var(--sp-5); }
 .set-section { padding: var(--sp-5) 0; border-bottom: 1px solid var(--hairline); }
 .set-section:last-child { border-bottom: 0; }
+.set-pane .set-section:last-child { border-bottom: 0; }
 .set-section h2 { font-size: var(--fs-xs); font-weight: var(--fw-bold); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: var(--sp-3); }
 .set-grid { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
-.theme-card { width: 122px; border: 2px solid var(--line); border-radius: var(--r); padding: 0; cursor: pointer; overflow: hidden; background: var(--surface-1); transition: border-color var(--t-fast), transform .05s; }
+.theme-card { width: 122px; border: 2px solid var(--line); border-radius: var(--r); padding: 0; cursor: pointer; overflow: hidden; background: var(--surface-1); transition: border-color var(--t-fast), transform .05s; position: relative; }
 .theme-card:hover { transform: translateY(-1px); }
 .theme-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .theme-prev { height: 60px; position: relative; }
@@ -1230,6 +1271,36 @@ textarea.field {
 .theme-prev .tp-panel.b { top: 32px; right: 36px; }
 .theme-prev .tp-dot { position: absolute; right: 12px; bottom: 12px; width: 14px; height: 14px; border-radius: 50%; }
 .theme-name { padding: 8px 11px; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+/* hover edit/delete affordances on custom theme cards only */
+.theme-tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity var(--t-fast); }
+.theme-card.custom:hover .theme-tools, .theme-card.custom:focus-within .theme-tools { opacity: 1; }
+.theme-tool { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; cursor: pointer;
+  border: 1px solid var(--hairline-strong); border-radius: var(--r-xs); background: var(--surface-2); color: var(--ink); }
+.theme-tool:hover { border-color: var(--accent); color: var(--accent); }
+.theme-tool svg { width: 13px; height: 13px; }
+/* "+ Lag eget tema" card */
+.theme-add { display: grid; place-items: center; min-height: 96px; border-style: dashed; background: transparent; color: var(--muted); }
+.theme-add:hover { border-color: var(--accent); color: var(--accent); }
+.theme-add-inner { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.theme-add-inner .ic { display: grid; place-items: center; }
+.theme-add-inner .ic svg { width: 20px; height: 20px; }
+
+/* ---- custom theme builder modal ---- */
+.tb { display: flex; flex-direction: column; gap: var(--sp-4); }
+.tb-field { display: flex; flex-direction: column; gap: var(--sp-2); }
+.tb-label { font-size: var(--fs-xs); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.tb-label-row { display: flex; align-items: center; justify-content: space-between; }
+.tb-val { font-size: var(--fs-sm); color: var(--faint); }
+.tb-colors { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+.tb-colorfield { flex: 1; min-width: 96px; }
+.tb-sample { border-radius: var(--r-sm); padding: var(--sp-4); transition: background .12s; }
+.tb-sample-card { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
+.tb-sample-head { font-size: var(--fs-lg); font-weight: var(--fw-semibold); letter-spacing: -.01em; }
+.tb-sample-body { font-size: var(--fs-base); }
+.tb-sample-row { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); }
+.tb-sample-btn { padding: 5px 12px; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.tb-sample-chip { padding: 3px 9px; border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: var(--fw-medium); }
+.tb-sample-dot { width: 16px; height: 16px; border-radius: 50%; }
 .swatches { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
 .swatch { width: 30px; height: 30px; border-radius: var(--r-sm); border: 2px solid var(--line); cursor: pointer; padding: 0; transition: transform .05s; }
 .swatch:hover { transform: scale(1.08); }
@@ -1263,6 +1334,24 @@ textarea.field {
 .color-well:hover { border-color: var(--accent); }
 .set-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .set-intro { margin: 0 0 var(--sp-3); }
+
+/* ---- live theme preview (Tema category) — restyled live by applySettings ---- */
+.theme-preview { max-width: 460px; }
+.tprev-card {
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  border-radius: var(--r); padding: var(--sp-4); box-shadow: var(--elev-1);
+  display: flex; flex-direction: column; gap: var(--sp-2);
+}
+.tprev-head { font-family: var(--font-head); font-size: var(--fs-lg); font-weight: var(--fw-semibold); color: var(--ink); letter-spacing: -.01em; }
+.tprev-body { font-size: var(--fs-base); color: var(--muted); }
+.tprev-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-1); }
+.tprev-cell {
+  width: 26px; height: 26px; flex-shrink: 0; border-radius: var(--r-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ok-soft); color: var(--ok);
+}
+[data-contacted="accent"] .tprev-cell.on { background: var(--accent-soft); color: var(--accent); }
+.tprev-cell .check { width: 16px; height: 16px; }
 
 /* =====================================================================
    DESIGN LAB

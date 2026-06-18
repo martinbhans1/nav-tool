@@ -165,78 +165,140 @@
         <div class="view-head">
           <h1>Innstillinger</h1>
         </div>
-        <div class="card set-card">
-          <div class="set-section">
-            <h2>Tema</h2>
-            <div id="themeGrid" class="set-grid"></div>
-          </div>
-          <div class="set-section">
-            <h2>Aksentfarge</h2>
-            <div class="color-field">
-              <div id="accentColor"></div>
-              <div id="accentSwatches" class="swatches"></div>
+        <div class="set-layout">
+          <!-- left category menu (mirrors the Lab sub-nav pattern) -->
+          <div class="set-catnav" id="setCatNav"></div>
+          <!-- right pane: one .set-pane per category, only the active one shown -->
+          <div class="card set-pane-card">
+            <div class="set-pane" data-cat="tema">
+              <div class="set-section">
+                <h2>Tema</h2>
+                <div id="themeGrid" class="set-grid"></div>
+              </div>
+              <div class="set-section">
+                <h2>Aksentfarge</h2>
+                <div class="color-field">
+                  <div id="accentColor"></div>
+                  <div id="accentSwatches" class="swatches"></div>
+                </div>
+              </div>
+              <div class="set-section">
+                <h2>Forhåndsvisning</h2>
+                <div id="themePreview" class="theme-preview"></div>
+              </div>
             </div>
-          </div>
-          <div class="set-section">
-            <h2>Skrifttype</h2>
-            <div id="fontGrid" class="set-grid"></div>
-          </div>
-          <div class="set-section">
-            <h2>Tetthet</h2>
-            <div class="seg-group" id="densityGroup">
-              <button type="button" class="seg" data-val="comfortable">Luftig</button>
-              <button type="button" class="seg" data-val="compact">Kompakt</button>
+
+            <div class="set-pane" data-cat="utseende">
+              <div class="set-section">
+                <h2>Skrifttype</h2>
+                <div id="fontGrid" class="set-grid"></div>
+              </div>
+              <div class="set-section">
+                <h2>Overskrift-font</h2>
+                <div id="headingFontGroup"></div>
+              </div>
+              <div class="set-section">
+                <h2>Tetthet</h2>
+                <div class="seg-group" id="densityGroup">
+                  <button type="button" class="seg" data-val="comfortable">Luftig</button>
+                  <button type="button" class="seg" data-val="compact">Kompakt</button>
+                </div>
+              </div>
+              <div class="set-section">
+                <h2>Hjørner (avrunding)</h2>
+                <div class="range-row">
+                  <div id="radiusRange"></div>
+                  <span class="range-val" id="radiusVal">12px</span>
+                  <div class="radius-sample"></div>
+                </div>
+              </div>
+              <div class="set-section">
+                <h2>Bakgrunn</h2>
+                <div class="seg-group" id="bgGroup">
+                  <button type="button" class="seg" data-val="flat">Flat</button>
+                  <button type="button" class="seg" data-val="gradient">Toning</button>
+                  <button type="button" class="seg" data-val="dots">Prikker</button>
+                </div>
+              </div>
+              <div class="set-section">
+                <h2>Gradient</h2>
+                <div class="range-row">
+                  <div id="gradientRange"></div>
+                  <span class="range-val" id="gradientVal">6%</span>
+                </div>
+              </div>
+              <div class="set-section">
+                <h2>Kontaktet-farge</h2>
+                <div class="seg-group" id="contactedGroup">
+                  <button type="button" class="seg" data-val="green">Grønn</button>
+                  <button type="button" class="seg" data-val="accent">Aksent</button>
+                </div>
+              </div>
+              <div class="set-section">
+                <h2>Animasjoner</h2>
+                <div id="motionGroup"></div>
+              </div>
             </div>
-          </div>
-          <div class="set-section">
-            <h2>Tekststørrelse</h2>
-            <div class="range-row">
-              <div id="readingRange"></div>
-              <span class="range-val" id="readingVal">14px</span>
+
+            <div class="set-pane" data-cat="tekst">
+              <div class="set-section">
+                <h2>Tekststørrelse</h2>
+                <div class="range-row">
+                  <div id="readingRange"></div>
+                  <span class="range-val" id="readingVal">14px</span>
+                </div>
+              </div>
+              <div class="set-section">
+                <h2>Størrelse</h2>
+                <div class="range-row">
+                  <div id="scaleRange"></div>
+                  <span class="range-val" id="scaleVal">100%</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="set-section">
-            <h2>Størrelse</h2>
-            <div class="range-row">
-              <div id="scaleRange"></div>
-              <span class="range-val" id="scaleVal">100%</span>
+
+            <div class="set-pane" data-cat="atferd">
+              <div class="set-section">
+                <h2>Startside</h2>
+                <p class="view-sub set-intro">Hvilken side appen åpner når den startes.</p>
+                <div id="landingViewDd"></div>
+              </div>
+              <div class="set-section">
+                <h2>Standard prioritet</h2>
+                <p class="view-sub set-intro">Forhåndsvalgt prioritet for nye gjøremål.</p>
+                <div id="defaultPriorityDd"></div>
+              </div>
+              <div class="set-section">
+                <h2>Standard frist</h2>
+                <p class="view-sub set-intro">Forhåndsvalgt frist for nye gjøremål.</p>
+                <div id="defaultDueGroup"></div>
+              </div>
+              <div class="set-section">
+                <h2>Datoformat</h2>
+                <p class="view-sub set-intro">Hvordan datoer vises i hele appen.</p>
+                <div id="dateFormatGroup"></div>
+              </div>
             </div>
-          </div>
-          <div class="set-section">
-            <h2>Hjørner (avrunding)</h2>
-            <div class="range-row">
-              <div id="radiusRange"></div>
-              <span class="range-val" id="radiusVal">12px</span>
-              <div class="radius-sample"></div>
+
+            <div class="set-pane" data-cat="backup">
+              <div class="set-section">
+                <h2>Sikkerhetskopi</h2>
+                <p class="view-sub set-intro">Lagre alle data til en fil, eller hent dem tilbake fra en tidligere kopi.</p>
+                <div class="set-actions">
+                  <button id="exportBtn" class="btn secondary"><span class="ic" data-icon="download"></span>Eksporter…</button>
+                  <button id="importBtn" class="btn secondary"><span class="ic" data-icon="upload"></span>Importer…</button>
+                  <button id="revealBtn" class="btn ghost"><span class="ic" data-icon="folder"></span>Vis datafil</button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="set-section">
-            <h2>Bakgrunn</h2>
-            <div class="seg-group" id="bgGroup">
-              <button type="button" class="seg" data-val="flat">Flat</button>
-              <button type="button" class="seg" data-val="gradient">Toning</button>
-              <button type="button" class="seg" data-val="dots">Prikker</button>
+
+            <div class="set-pane" data-cat="reset">
+              <div class="set-section">
+                <h2>Tilbakestilling</h2>
+                <p class="view-sub set-intro">Sett alle utseende- og atferdsvalg tilbake til standard.</p>
+                <button id="resetTheme" class="btn"><span class="ic" data-icon="rotate-ccw"></span>Tilbakestill tilpasning</button>
+              </div>
             </div>
-          </div>
-          <div class="set-section">
-            <h2>Kontaktet-farge</h2>
-            <div class="seg-group" id="contactedGroup">
-              <button type="button" class="seg" data-val="green">Grønn</button>
-              <button type="button" class="seg" data-val="accent">Aksent</button>
-            </div>
-          </div>
-          <div class="set-section">
-            <h2>Sikkerhetskopi</h2>
-            <p class="view-sub set-intro">Lagre alle data til en fil, eller hent dem tilbake fra en tidligere kopi.</p>
-            <div class="set-actions">
-              <button id="exportBtn" class="btn secondary"><span class="ic" data-icon="download"></span>Eksporter…</button>
-              <button id="importBtn" class="btn secondary"><span class="ic" data-icon="upload"></span>Importer…</button>
-              <button id="revealBtn" class="btn ghost"><span class="ic" data-icon="folder"></span>Vis datafil</button>
-            </div>
-          </div>
-          <div class="set-section">
-            <h2>Tilbakestilling</h2>
-            <button id="resetTheme" class="btn"><span class="ic" data-icon="rotate-ccw"></span>Tilbakestill tilpasning</button>
           </div>
         </div>
       </section>
