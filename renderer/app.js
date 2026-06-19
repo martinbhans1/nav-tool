@@ -2140,6 +2140,12 @@ function renderSetCatNav() {
       if (settingsCategory === c.key) return;
       settingsCategory = c.key;
       renderSetCatNav();
+      // Opening the updates pane should always re-check live, never show a
+      // stale "Du har siste versjon." from an earlier check.
+      if (c.key === 'oppdater') {
+        const b = document.getElementById('updCheckBtn');
+        if (b && !b.disabled) b.click();
+      }
     });
     nav.appendChild(item);
   });
