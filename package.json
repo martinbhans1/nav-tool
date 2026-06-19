@@ -20,10 +20,10 @@
   },
   "build": {
     "appId": "no.local.navtool",
-    "productName": "Oppfølging",
+    "productName": "Tdo",
     "files": ["main.js", "preload.js", "renderer/**/*"],
     "win": { "target": "nsis", "icon": "build/icon.ico" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "artifactName": "nav-tool-setup-${version}.${ext}" },
     "publish": { "provider": "github", "owner": "martinbhans1", "repo": "nav-tool", "releaseType": "release" }
   }
 }

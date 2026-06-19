@@ -1,4 +1,4 @@
-# Oppfølging (nav-tool)
+# Tdo (nav-tool)
 
 Et lokalt oppfølgingsverktøy — en kontakt-oversikt per måned, gjøremål og
 notater. **All data ligger lokalt på maskinen. Ingenting sendes til skyen.**

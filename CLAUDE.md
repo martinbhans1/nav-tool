@@ -1,4 +1,4 @@
-# nav-tool — "Oppfølging"
+# nav-tool — "Tdo"
 
 A local, offline Windows desktop app (Electron) for NAV-style follow-up work.
 Single-window, frameless, custom design system, Norwegian UI. Data is sensitive

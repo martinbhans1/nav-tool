@@ -45,7 +45,7 @@ function createWindow() {
     minWidth: 940,
     minHeight: 600,
     backgroundColor: '#f5f6f8',
-    title: 'Oppfølging',
+    title: 'Tdo',
     icon: path.join(__dirname, 'renderer', 'logo.png'),
     // Frameless: we draw our own title bar (min/max/close) in the renderer so the
     // controls merge into the app background — no black OS chrome. The window is
@@ -137,14 +137,15 @@ function setupUpdater() {
   }
 
   // Manual "Se etter oppdateringer".
-  ipcMain.handle('update:check', async () => {
+  ipcMain.handle('update:check', () => {
     if (!active) return { phase: 'dev' };
-    try {
-      await autoUpdater.checkForUpdates();
-      return { phase: 'checking' }; // events drive the rest of the UI
-    } catch (e) {
-      return { phase: 'error', error: String((e && e.message) || e) };
-    }
+    // Fire-and-forget: the terminal state ('none' / 'available' / 'error')
+    // arrives via the event listeners above. We must NOT await here — awaiting
+    // makes this return *after* update-not-available has already updated the UI,
+    // and the returned 'checking' would then clobber it back to "Sjekker…"
+    // forever. Errors surface through the 'error' event.
+    autoUpdater.checkForUpdates().catch(() => {});
+    return { phase: 'checking' };
   });
 
   // "Start på nytt" — install the downloaded update. Flush data first via the

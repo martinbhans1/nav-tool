@@ -1452,6 +1452,7 @@ function hideMonthPop() {
 function showMonthPop(anchor, info) {
   hideMonthPop();
   const pop = el('div', 'mc-pop');
+  _mcPop = pop; // track it so hideMonthPop()/mouseleave can actually remove it
   pop.appendChild(el('div', 'mc-pop-kind', info.kind));
   pop.appendChild(el('div', 'mc-pop-title', info.title || (info.kind === 'Referat' ? 'Referat' : 'Gjøremål')));
   const metaBits = [];
@@ -2845,7 +2846,7 @@ function renderDesignLab() {
     types.forEach(([v, px, role]) => {
       const r = el('div', 'tok-type-row');
       r.appendChild(el('span', 'tt-meta', `${role} · ${v} · ${px}`));
-      const sample = el('span', null, 'Oppfølging Aa Bb 123');
+      const sample = el('span', null, 'Tdo Aa Bb 123');
       sample.style.fontSize = `var(${v})`;
       r.appendChild(sample);
       wrap.appendChild(r);
