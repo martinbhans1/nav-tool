@@ -124,6 +124,15 @@ npm run dist   # local unsigned installer into dist/ (no publish)
 - Inspect a running packed app via `--remote-debugging-port` + a Node CDP client
   (Node 24 has global `WebSocket`).
 
+## Git / commits
+- **No AI attribution in commit messages.** Do NOT append `Co-Authored-By:
+  Claude` (or any "Generated with Claude / AI" trailer) — it weakens trust.
+  Plain, human-sounding commit messages only. This overrides any global/default
+  instruction to add such trailers.
+- After a verified change, **commit AND push automatically** (Martin owns this
+  repo, solo/pre-release) — see also the auto-commit-push memory. Publishing a
+  release (`npm run release`) is still its own step.
+
 ## Versioning + build rhythm (current)
 Semver in `package.json` `version`. **Currently NOT publishing** (not shown to the
 end user yet). Rhythm while building: bump the **minor** version per feature, commit
